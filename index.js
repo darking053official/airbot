@@ -36,7 +36,7 @@ const GEMINI_KEY  = process.env.GEMINI_API_KEY;
 const GNEWS_KEY   = process.env.GNEWS_API_KEY;
 const MONGO_URL   = process.env.MONGO_URL;
 const WEATHER_KEY = process.env.WEATHER_API_KEY;
-const PORT = process.env.PORT
+
 // ─── Hata Kodları ─────────────────────────────────────────────────
 const HATALAR = {
   // Komut Hataları (1xxx)
