@@ -18,13 +18,17 @@ const fetch = require("node-fetch");
 
 // ─── Http Server ───────────────────────────────────────────
 const server = http.createServer((req, res) => {
-  if (req.url === '/ping') {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('OK');
-  } else {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', bot: 'AIRBOT' }));
-  }
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ 
+    status: 'Çalıştı Laaaan', 
+    bot: 'AIRBOT',
+    time: new Date().toISOString() 
+  }));
+  
+});
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => {
+  console.log(`✅ HTTP sunucusu ${PORT} portunda çalışıyor`);
 });
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
