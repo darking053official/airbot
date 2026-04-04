@@ -1,10 +1,13 @@
 // ╔══════════════════════════════════════════════════════════════════╗
-// ║                    AIRBOT - Jubbio Bot                                       ║
-// ║  Yönetici | Oyun | Genel | Ekonomi | Seviye | Müzik | AI                     ║
+// ║                    AIRBOT - Jubbio Bot v2.0                     ║
+// ║  Yönetici | Oyun | Genel | Ekonomi | Seviye | Müzik | AI       ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 const { Client, GatewayIntentBits, EmbedBuilder, Colors } = require("@jubbio/core");
-const { joinVoiceChannel, createAudioPlayer, createAudioResourceFromUrl, probeAudioInfo, getVoiceConnection, AudioPlayerStatus } = require("@jubbio/voice");
+const {
+  joinVoiceChannel, createAudioPlayer, createAudioResourceFromUrl,
+  probeAudioInfo, getVoiceConnection, AudioPlayerStatus,
+} = require("@jubbio/voice");
 const { MongoClient } = require("mongodb");
 const fetch = require("node-fetch");
 const http = require("http");
@@ -12,7 +15,6 @@ const http = require("http");
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
 const GEMINI_KEY  = process.env.GEMINI_API_KEY;
-const GNEWS_KEY   = process.env.GNEWS_API_KEY;
 const MONGO_URL   = process.env.MONGO_URL;
 const WEATHER_KEY = process.env.WEATHER_API_KEY;
 
@@ -23,19 +25,19 @@ http.createServer((req, res) => {
 }).listen(10000, () => console.log("🌐 HTTP sunucu port 10000'de çalışıyor."));
 
 // ─── Hata Kodları ─────────────────────────────────────────────────
-const HATALAR = {
+const E = {
   E1001: "❌ `[E1001]` Yanlış kullanım! Kullanım: ",
   E1002: "❌ `[E1002]` Geçersiz sayı değeri.",
   E1003: "❌ `[E1003]` Kullanıcı belirtilmedi. Kullanım: ",
   E1004: "❌ `[E1004]` Argüman eksik. Kullanım: ",
   E1005: "❌ `[E1005]` Bu komut sadece sunucularda kullanılabilir.",
-  E2001: "🚫 `[E2001]` **Ban Üyeleri** yetkisine sahip olmalısın.",
-  E2002: "🚫 `[E2002]` **Üye At** yetkisine sahip olmalısın.",
-  E2003: "🚫 `[E2003]` **Üye Sustur** yetkisine sahip olmalısın.",
-  E2004: "🚫 `[E2004]` **Mesajları Yönet** yetkisine sahip olmalısın.",
-  E2005: "🚫 `[E2005]` **Kanalları Yönet** yetkisine sahip olmalısın.",
-  E2006: "🚫 `[E2006]` Hedef kullanıcı benden daha yüksek role sahip.",
-  E2007: "🚫 `[E2007]` **Yönetici** yetkisine sahip olmalısın.",
+  E2001: "🚫 `[E2001]` **Ban Üyeleri** yetkisi gerekli.",
+  E2002: "🚫 `[E2002]` **Üye At** yetkisi gerekli.",
+  E2003: "🚫 `[E2003]` **Üye Sustur** yetkisi gerekli.",
+  E2004: "🚫 `[E2004]` **Mesajları Yönet** yetkisi gerekli.",
+  E2005: "🚫 `[E2005]` **Kanalları Yönet** yetkisi gerekli.",
+  E2006: "🚫 `[E2006]` Hedef kullanıcı daha yüksek role sahip.",
+  E2007: "🚫 `[E2007]` **Yönetici** yetkisi gerekli.",
   E3001: "⚠️ `[E3001]` Gemini AI şu an yanıt vermiyor.",
   E3002: "⚠️ `[E3002]` Gemini API anahtarı geçersiz veya kota aşıldı.",
   E3005: "⚠️ `[E3005]` Hava durumu servisi yanıt vermiyor.",
@@ -54,16 +56,16 @@ const HATALAR = {
   E5007: "🎵 `[E5007]` Ses seviyesi 0-100 arasında olmalı.",
   E6001: "💰 `[E6001]` Yetersiz bakiye.",
   E6002: "💰 `[E6002]` Geçersiz miktar.",
-  E6003: "💰 `[E6003]` Bugünlük ödülünü zaten aldın.",
+  E6003: "💰 `[E6003]` Günlük ödülünü zaten aldın.",
   E6004: "💰 `[E6004]` Ürün bulunamadı.",
 };
 
 function hata(ctx, kod, ek = "") {
-  const kullanici = ctx.author?.username || ctx.user?.username || "?";
-  const mesaj = HATALAR[kod] + ek;
-  console.error(`[${kod}] ${kullanici}: ${mesaj}`);
-  if (ctx.reply) return ctx.reply(mesaj);
-  if (ctx.editReply) return ctx.editReply(mesaj);
+  const kim = ctx.author?.username || ctx.user?.username || "?";
+  const msg = E[kod] + ek;
+  console.error(`[${kod}] ${kim}: ${msg}`);
+  if (ctx.reply) return ctx.reply(msg);
+  if (ctx.editReply) return ctx.editReply(msg);
 }
 
 // ─── MongoDB ──────────────────────────────────────────────────────
@@ -80,35 +82,34 @@ let db = null;
 })();
 
 // ─── DB Yardımcıları ──────────────────────────────────────────────
-async function kullaniciyiGetir(guildId, userId) {
+async function dbKullanici(guildId, userId) {
   if (!db) throw new Error("E4001");
   const col = db.collection("kullanicilar");
-  let user = await col.findOne({ guildId, userId });
-  if (!user) {
-    user = { guildId, userId, para: 0, xp: 0, seviye: 1, envanter: [], uyarilar: [], afk: null, notlar: [], hatirlatmalar: [], olusturulma: new Date() };
-    await col.insertOne(user);
+  let u = await col.findOne({ guildId, userId });
+  if (!u) {
+    u = { guildId, userId, para: 0, xp: 0, seviye: 1, envanter: [], uyarilar: [], afk: null, notlar: [], sonGunluk: null };
+    await col.insertOne(u);
   }
-  return user;
+  return u;
 }
 
-async function kullaniciyiGuncelle(guildId, userId, guncelleme) {
+async function dbGuncelle(guildId, userId, set) {
   if (!db) throw new Error("E4001");
-  await db.collection("kullanicilar").updateOne({ guildId, userId }, { $set: guncelleme }, { upsert: true });
+  await db.collection("kullanicilar").updateOne({ guildId, userId }, { $set: set }, { upsert: true });
 }
 
-async function paraEkle(guildId, userId, miktar) {
+async function dbParaEkle(guildId, userId, miktar) {
   if (!db) throw new Error("E4001");
   await db.collection("kullanicilar").updateOne({ guildId, userId }, { $inc: { para: miktar } }, { upsert: true });
 }
 
-async function xpEkle(guildId, userId, miktar) {
-  if (!db) throw new Error("E4001");
-  const user = await kullaniciyiGetir(guildId, userId);
-  const yeniXp = (user.xp || 0) + miktar;
+async function dbXpEkle(guildId, userId, miktar) {
+  const u = await dbKullanici(guildId, userId);
+  const yeniXp = (u.xp || 0) + miktar;
   const yeniSeviye = Math.floor(0.1 * Math.sqrt(yeniXp));
-  const seviyeAtladi = yeniSeviye > (user.seviye || 1);
+  const atladi = yeniSeviye > (u.seviye || 1);
   await db.collection("kullanicilar").updateOne({ guildId, userId }, { $set: { xp: yeniXp, seviye: yeniSeviye } }, { upsert: true });
-  return { seviyeAtladi, yeniSeviye };
+  return { atladi, yeniSeviye };
 }
 
 // ─── Jubbio Client ────────────────────────────────────────────────
@@ -122,6 +123,69 @@ const client = new Client({
   ],
 });
 
+// ─── Slash Komutları Tanımları ────────────────────────────────────
+const SLASH_KOMUTLAR = [
+  {
+    name: "sesligel",
+    description: "Botu ses kanalına çeker.",
+  },
+  {
+    name: "sesliçık",
+    description: "Botu ses kanalından çıkarır.",
+  },
+  {
+    name: "çal",
+    description: "Şarkı çalar veya kuyruğa ekler.",
+    options: [
+      { type: 3, name: "şarkı", description: "Şarkı adı veya URL", required: true },
+    ],
+  },
+  {
+    name: "oynat",
+    description: "Şarkı çalar veya kuyruğa ekler.",
+    options: [
+      { type: 3, name: "şarkı", description: "Şarkı adı veya URL", required: true },
+    ],
+  },
+  {
+    name: "dur",
+    description: "Müziği durdurur ve kuyruğu temizler.",
+  },
+  {
+    name: "geç",
+    description: "Mevcut şarkıyı atlar.",
+  },
+  {
+    name: "geri",
+    description: "Önceki şarkıya döner.",
+  },
+  {
+    name: "sıra",
+    description: "Müzik kuyruğunu gösterir.",
+  },
+  {
+    name: "öneri",
+    description: "Müzik türüne göre öneri yapar.",
+    options: [
+      { type: 3, name: "tür", description: "Müzik türü (pop, rock, rap...)", required: true },
+    ],
+  },
+];
+
+// ─── Slash Komutlarını Kaydet ─────────────────────────────────────
+async function slashKomutlariKaydet() {
+  console.log("📝 Slash komutları kaydediliyor...");
+  for (const komut of SLASH_KOMUTLAR) {
+    try {
+      await client.application.commands.create(komut);
+      console.log(`  ✅ /${komut.name} kaydedildi.`);
+    } catch (e) {
+      console.error(`  ❌ /${komut.name} kaydedilemedi: ${e.message}`);
+    }
+  }
+  console.log(`📝 Toplam ${SLASH_KOMUTLAR.length} slash komutu işlendi.`);
+}
+
 // ─── Müzik ───────────────────────────────────────────────────────
 const queues  = new Map();
 const players = new Map();
@@ -130,27 +194,34 @@ function getPlayer(guildId) {
   if (!players.has(guildId)) players.set(guildId, createAudioPlayer());
   return players.get(guildId);
 }
+
 function getQueue(guildId) {
   if (!queues.has(guildId)) queues.set(guildId, { songs: [], playing: false, volume: 100 });
   return queues.get(guildId);
 }
+
 async function playSong(guildId, channel) {
   const queue = getQueue(guildId);
   if (!queue.songs.length) { queue.playing = false; return; }
   const song = queue.songs[0];
   queue.playing = true;
   try {
-    const info = await probeAudioInfo(song.url);
+    const info     = await probeAudioInfo(song.url);
     const resource = createAudioResourceFromUrl(info.url);
-    const player = getPlayer(guildId);
+    const player   = getPlayer(guildId);
     player.play(resource);
     player.once(AudioPlayerStatus.Idle, () => { queue.songs.shift(); playSong(guildId, channel); });
-    const embed = new EmbedBuilder().setTitle("🎵 Şimdi Çalıyor").setDescription(`**${song.title}**`).setColor(Colors.Blue).addFields({ name: "İsteyen", value: `<@${song.requestedBy}>`, inline: true }).setTimestamp();
+    const embed = new EmbedBuilder()
+      .setTitle("🎵 Şimdi Çalıyor")
+      .setDescription(`**${song.title}**`)
+      .setColor(Colors.Blue)
+      .addFields({ name: "İsteyen", value: `<@${song.requestedBy}>`, inline: true })
+      .setTimestamp();
     if (info.thumbnail) embed.setThumbnail(info.thumbnail);
     channel.send({ embeds: [embed] });
   } catch (err) {
     console.error(`[E5004] ${err.message}`);
-    channel.send(HATALAR.E5004);
+    channel.send(E.E5004);
     queue.songs.shift();
     playSong(guildId, channel);
   }
@@ -158,10 +229,10 @@ async function playSong(guildId, channel) {
 
 // ─── API Yardımcıları ─────────────────────────────────────────────
 async function geminiSor(prompt) {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-  });
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_KEY}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) }
+  );
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
@@ -174,37 +245,35 @@ async function havaDurumuGetir(sehir) {
   return res.json();
 }
 
-// ─── Bilgi Yarışması Soruları ─────────────────────────────────────
+// ─── Sabit Veriler ────────────────────────────────────────────────
 const SORULAR = [
   { soru: "Türkiye'nin başkenti neresidir?", cevap: "ankara" },
   { soru: "En büyük okyanus hangisidir?", cevap: "büyük okyanus" },
   { soru: "Su'nun kimyasal formülü nedir?", cevap: "h2o" },
-  { soru: "Güneş sistemimizdeki en büyük gezegen hangisidir?", cevap: "jüpiter" },
-  { soru: "Türkiye kaç ilde bulunur?", cevap: "81" },
+  { soru: "Güneş sisteminin en büyük gezegeni?", cevap: "jüpiter" },
+  { soru: "Türkiye kaç ilden oluşur?", cevap: "81" },
   { soru: "İstanbul'un eski adı nedir?", cevap: "konstantinopolis" },
-  { soru: "Dünyanın en uzun nehri hangisidir?", cevap: "nil" },
+  { soru: "Dünyanın en uzun nehri?", cevap: "nil" },
   { soru: "Türkiye Cumhuriyeti ne zaman kuruldu?", cevap: "1923" },
-  { soru: "Işığın hızı kaç km/s'dir? (yaklaşık)", cevap: "300000" },
-  { soru: "Kaç tane gezegen var güneş sisteminde?", cevap: "8" },
-  { soru: "Python hangi tür bir programlama dilidir?", cevap: "yorumlanan" },
-  { soru: "Dünyanın en yüksek dağı hangisidir?", cevap: "everest" },
-  { soru: "İnsan vücudunda kaç kemik vardır?", cevap: "206" },
-  { soru: "Elmanın rengi genellikle ne renktir?", cevap: "kırmızı" },
+  { soru: "Işığın hızı yaklaşık kaç km/s?", cevap: "300000" },
+  { soru: "Güneş sisteminde kaç gezegen var?", cevap: "8" },
+  { soru: "Dünyanın en yüksek dağı?", cevap: "everest" },
+  { soru: "İnsan vücudunda kaç kemik var?", cevap: "206" },
   { soru: "Türkiye'nin para birimi nedir?", cevap: "türk lirası" },
+  { soru: "Osmanlı İmparatorluğu'nun kurucusu kimdir?", cevap: "osman bey" },
+  { soru: "Türkiye'nin en uzun nehri?", cevap: "kızılırmak" },
 ];
 
-// ─── Espriler ────────────────────────────────────────────────────
 const ESPRILER = [
   "Neden bilgisayarlar hiç üşümez? Çünkü Windows'ları var! 😄",
   "Programcı markete gider. Karısı der ki: '1 ekmek al, süt varsa 6 tane al.' Programcı 6 ekmek alır. 😅",
-  "Sormak bedava değil mi? Evet ama cevap da öyle! 😂",
-  "Neden matematikçiler constipated olur? Çünkü logaritmalarla çalışırlar! 🤣",
   "Bot olmanın güzel yanı: Asla yorulmam. Kötü yanı: Asla uyuyamam. 😴",
   "Neden Java programcıları gözlük takar? Çünkü C# göremezler! 👓",
-  "İki integer yürüyor... Float geçiyor yanlarından. Integer'lardan biri diğerine: 'Bak şu noktasını kaybetmiş!' 😆",
+  "İki integer yürüyor... Float geçiyor. Biri der ki: 'Bak şu noktasını kaybetmiş!' 😆",
+  "Kendime ne mesleği seçeyim dedim, bot oldum. Pişman değilim. 🤖",
+  "Sormak bedava değil mi? Evet ama cevap da öyle! 😂",
 ];
 
-// ─── Market Ürünleri ──────────────────────────────────────────────
 const MARKET = [
   { id: 1, isim: "🎭 VIP Rozet",    fiyat: 500,  aciklama: "Profilde özel VIP rozeti" },
   { id: 2, isim: "🎨 Renk Rolü",    fiyat: 300,  aciklama: "Özel renk rolü" },
@@ -213,102 +282,95 @@ const MARKET = [
   { id: 5, isim: "🎁 Sürpriz Kutu", fiyat: 100,  aciklama: "50-500 arası rastgele para" },
 ];
 
-// ─── Küfür Listesi ────────────────────────────────────────────────
-const kufurListesi = new Map(); // guildId -> Set of words
-
-// ─── Log Kanalı ──────────────────────────────────────────────────
+// ─── Uçucu Veriler (Bellekte) ─────────────────────────────────────
+const afklar      = new Map(); // userId -> { sebep, zaman }
 const logKanallar = new Map(); // guildId -> channelId
+const kufurler    = new Map(); // guildId -> Set<string>
 
-async function log(guild, mesaj) {
+// ─── Yardımcı Fonksiyonlar ────────────────────────────────────────
+function sureyi_parse(sure) {
+  const m = sure.match(/^(\d+)(s|m|h|d)$/);
+  if (!m) return null;
+  return parseInt(m[1]) * { s: 1000, m: 60000, h: 3600000, d: 86400000 }[m[2]];
+}
+
+async function logGonder(guild, mesaj) {
   const kanalId = logKanallar.get(guild.id);
   if (!kanalId) return;
   try {
     const kanal = guild.channels.cache.get(kanalId);
-    if (kanal) kanal.send(`📋 **LOG** | ${mesaj}`);
-  } catch (e) { console.error("[LOG]", e.message); }
-}
-
-// ─── AFK Sistemi ──────────────────────────────────────────────────
-const afklar = new Map(); // userId -> { sebep, zaman }
-
-// ─── Hatırlatma Zamanlayıcıları ───────────────────────────────────
-function sureyi_parse(sure) {
-  const match = sure.match(/^(\d+)(s|m|h|d)$/);
-  if (!match) return null;
-  const sayi = parseInt(match[1]);
-  const birim = match[2];
-  const carpan = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
-  return sayi * carpan[birim];
+    if (kanal) kanal.send(`📋 **LOG** | ${new Date().toLocaleString("tr-TR")} | ${mesaj}`);
+  } catch (e) { console.error("[LOG HATA]", e.message); }
 }
 
 // ─── Ready ────────────────────────────────────────────────────────
-client.on("ready", () => {
+client.on("ready", async () => {
   console.log(`✅ ${client.user?.username} çevrimiçi!`);
+  await slashKomutlariKaydet();
 });
 
-// ─── XP - Her mesajda ─────────────────────────────────────────────
+// ─── messageCreate ────────────────────────────────────────────────
 client.on("messageCreate", async (message) => {
   if (message.author.bot || !message.guild) return;
 
-  // AFK kontrol
+  // ── AFK kontrolü ───────────────────────────────────────────────
   if (afklar.has(message.author.id)) {
     afklar.delete(message.author.id);
-    message.reply(`👋 AFK modundan çıktın.`).then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
+    const m = await message.reply("👋 AFK modundan çıktın.");
+    setTimeout(() => m.delete().catch(() => {}), 5000);
   }
-
-  // Bahsedilen kullanıcı AFK mı?
   message.mentions.users.forEach(u => {
     if (afklar.has(u.id)) {
-      const afk = afklar.get(u.id);
-      message.reply(`💤 **${u.username}** şu an AFK. Sebep: ${afk.sebep}`).then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
+      const a = afklar.get(u.id);
+      message.reply(`💤 **${u.username}** şu an AFK → ${a.sebep}`).then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
     }
   });
 
-  // Küfür filtresi
-  const guildKufurler = kufurListesi.get(message.guild.id);
-  if (guildKufurler) {
-    const icerik = message.content.toLowerCase();
-    for (const kufur of guildKufurler) {
-      if (icerik.includes(kufur)) {
+  // ── Küfür filtresi ─────────────────────────────────────────────
+  const gKufur = kufurler.get(message.guild.id);
+  if (gKufur) {
+    const lower = message.content.toLowerCase();
+    for (const k of gKufur) {
+      if (lower.includes(k)) {
         message.delete().catch(() => {});
-        message.channel.send(`⚠️ <@${message.author.id}>, uygunsuz kelime kullandın!`).then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
-        await log(message.guild, `Küfür: ${message.author.username} → "${message.content}"`);
+        message.channel.send(`⚠️ <@${message.author.id}>, uygunsuz kelime!`).then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
+        await logGonder(message.guild, `Küfür: ${message.author.username} → "${message.content}"`);
         break;
       }
     }
   }
 
-  // XP kazan (her mesajda 5-15 arası rastgele)
+  // ── XP kazan ───────────────────────────────────────────────────
   try {
-    const { seviyeAtladi, yeniSeviye } = await xpEkle(message.guild.id, message.author.id, Math.floor(Math.random() * 10) + 5);
-    if (seviyeAtladi) {
+    const { atladi, yeniSeviye } = await dbXpEkle(message.guild.id, message.author.id, Math.floor(Math.random() * 10) + 5);
+    if (atladi) {
       message.channel.send(`🎉 Tebrikler <@${message.author.id}>! **${yeniSeviye}. seviyeye** ulaştın!`);
-      await log(message.guild, `Seviye atladı: ${message.author.username} → Seviye ${yeniSeviye}`);
+      await logGonder(message.guild, `Seviye: ${message.author.username} → Seviye ${yeniSeviye}`);
     }
-  } catch (e) { /* DB yoksa sessizce geç */ }
+  } catch { /* DB yoksa sessizce geç */ }
 
   if (!message.content.startsWith("!")) return;
 
   const args = message.content.slice(1).trim().split(/\s+/);
   const cmd  = args.shift().toLowerCase();
 
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
   //  YARDIM & PING
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
 
   if (cmd === "yardim" || cmd === "yardım") {
     const embed = new EmbedBuilder()
       .setTitle("📖 AIRBOT Komutları")
       .setColor(Colors.Purple)
       .addFields(
-        { name: "👑 Yönetici (12)", value: "`!temizle` `!temizle-kullanici` `!uyar` `!uyarilar` `!sustur` `!susturma-kaldir` `!ban` `!kick` `!banlist` `!duyuru` `!kilit` `!yavasmod`" },
-        { name: "🎮 Oyun (6)",      value: "`!zar` `!yazitura` `!sayitahmin` `!bilgiyarisma` `!espri` `!8ball`" },
-        { name: "📝 Genel (15)",    value: "`!ping` `!kullanici` `!sunucu` `!avatar` `!random` `!istatistik` `!afk` `!not` `!notlar` `!notsil` `!hatirlat` `!davet` `!destek` `!havadurumu`" },
-        { name: "💰 Ekonomi (8)",   value: "`!gunluk` `!cal` `!market` `!satinal` `!envanter` `!kumar` `!piyango` `!transfer`" },
-        { name: "📈 Seviye (3)",    value: "`!seviye` `!liderlik` `!xp`" },
-        { name: "🎵 Sesli (9)",     value: "`/sesligel` `/sesliçık` `/dur` `/çal` `/oynat` `/sıra` `/geç` `/geri` `/öneri`" },
-        { name: "🤖 AI (7)",        value: "`!ai` `!sohbet` `!yorumla` `!ozetle` `!cevir` `!soru`" },
-        { name: "⚙️ Ayarlar (2)",   value: "`!logkanal` `!kufurlistesi`" },
+        { name: "👑 Yönetici (12)",  value: "`!temizle` `!temizle-kullanici` `!uyar` `!uyarilar` `!sustur` `!susturma-kaldir` `!ban` `!kick` `!banlist` `!duyuru` `!kilit` `!yavasmod`" },
+        { name: "🎮 Oyun (6)",       value: "`!zar` `!yazitura` `!sayitahmin` `!bilgiyarisma` `!espri` `!8ball`" },
+        { name: "📝 Genel (14)",     value: "`!ping` `!kullanici` `!sunucu` `!avatar` `!random` `!istatistik` `!afk` `!not` `!notlar` `!notsil` `!hatirlat` `!davet` `!destek` `!havadurumu`" },
+        { name: "💰 Ekonomi (8)",    value: "`!gunluk` `!cal` `!market` `!satinal` `!envanter` `!kumar` `!piyango` `!transfer`" },
+        { name: "📈 Seviye (3)",     value: "`!seviye` `!liderlik` `!xp`" },
+        { name: "🎵 Sesli (9)",      value: "`/sesligel` `/sesliçık` `/çal` `/oynat` `/dur` `/geç` `/geri` `/sıra` `/öneri`" },
+        { name: "🤖 AI (6)",         value: "`!ai` `!sohbet` `!yorumla` `!ozetle` `!cevir` `!soru`" },
+        { name: "⚙️ Ayarlar (2)",    value: "`!logkanal` `!kufurlistesi`" },
       )
       .setFooter({ text: "AIRBOT • Jubbio" })
       .setTimestamp();
@@ -321,9 +383,9 @@ client.on("messageCreate", async (message) => {
     return msg.edit(`🏓 Pong! \`${Date.now() - start}ms\``);
   }
 
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
   //  YÖNETİCİ KOMUTLARI
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
 
   if (cmd === "temizle") {
     if (!message.member?.permissions?.has("ManageMessages")) return hata(message, "E2004");
@@ -333,7 +395,7 @@ client.on("messageCreate", async (message) => {
       await message.channel.bulkDelete(sayi);
       const b = await message.channel.send(`🗑️ ${sayi} mesaj silindi.`);
       setTimeout(() => b.delete().catch(() => {}), 3000);
-      await log(message.guild, `Temizle: ${message.author.username} → ${sayi} mesaj`);
+      await logGonder(message.guild, `Temizle: ${message.author.username} → ${sayi} mesaj`);
     } catch (e) { message.reply(`❌ Hata: ${e.message}`); }
     return;
   }
@@ -346,9 +408,9 @@ client.on("messageCreate", async (message) => {
     if (isNaN(sayi) || sayi < 1 || sayi > 100) return hata(message, "E1002");
     try {
       const msgs = await message.channel.messages.fetch({ limit: 100 });
-      const filtered = msgs.filter(m => m.author.id === user.id).first(sayi);
+      const filtered = [...msgs.filter(m => m.author.id === user.id).values()].slice(0, sayi);
       await message.channel.bulkDelete(filtered);
-      const b = await message.channel.send(`🗑️ ${user.user.username} kullanıcısından ${filtered.length} mesaj silindi.`);
+      const b = await message.channel.send(`🗑️ **${user.user.username}** kullanıcısından ${filtered.length} mesaj silindi.`);
       setTimeout(() => b.delete().catch(() => {}), 3000);
     } catch (e) { message.reply(`❌ Hata: ${e.message}`); }
     return;
@@ -360,25 +422,25 @@ client.on("messageCreate", async (message) => {
     if (!user) return hata(message, "E1003", "`!uyar @kullanıcı <sebep>`");
     const sebep = args.slice(1).join(" ") || "Sebep belirtilmedi";
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, user.id);
-      const uyarilar = [...(userData.uyarilar || []), { sebep, mod: message.author.id, tarih: new Date() }];
-      await kullaniciyiGuncelle(message.guild.id, user.id, { uyarilar });
+      const u = await dbKullanici(message.guild.id, user.id);
+      const uyarilar = [...(u.uyarilar || []), { sebep, mod: message.author.id, tarih: new Date() }];
+      await dbGuncelle(message.guild.id, user.id, { uyarilar });
       message.reply(`⚠️ **${user.user.username}** uyarıldı. Sebep: ${sebep} | Toplam: **${uyarilar.length}**`);
-      await log(message.guild, `Uyarı: ${user.user.username} → ${sebep} (Mod: ${message.author.username})`);
-    } catch (e) { hata(message, HATALAR[e.message] ? e.message : "E4002"); }
+      await logGonder(message.guild, `Uyarı: ${user.user.username} → ${sebep} (Mod: ${message.author.username})`);
+    } catch (e) { hata(message, E[e.message] ? e.message : "E4002"); }
     return;
   }
 
   if (cmd === "uyarilar") {
     const user = message.mentions.members?.first() || message.member;
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, user.id);
-      const uyarilar = userData.uyarilar || [];
+      const u = await dbKullanici(message.guild.id, user.id);
+      const uyarilar = u.uyarilar || [];
       if (!uyarilar.length) return message.reply(`✅ **${user.user.username}** uyarısı yok.`);
       const embed = new EmbedBuilder()
         .setTitle(`⚠️ ${user.user.username} Uyarıları`)
         .setColor(Colors.Yellow)
-        .setDescription(uyarilar.map((u, i) => `**${i + 1}.** ${u.sebep} — <t:${Math.floor(new Date(u.tarih).getTime() / 1000)}:R>`).join("\n"))
+        .setDescription(uyarilar.map((w, i) => `**${i + 1}.** ${w.sebep} — <t:${Math.floor(new Date(w.tarih).getTime() / 1000)}:R>`).join("\n"))
         .setTimestamp();
       message.reply({ embeds: [embed] });
     } catch (e) { hata(message, "E4003"); }
@@ -394,7 +456,7 @@ client.on("messageCreate", async (message) => {
     try {
       await user.timeout(dakika * 60 * 1000);
       message.reply(`🔇 **${user.user.username}** ${dakika} dakika susturuldu.`);
-      await log(message.guild, `Sustur: ${user.user.username} → ${dakika}dk (Mod: ${message.author.username})`);
+      await logGonder(message.guild, `Sustur: ${user.user.username} → ${dakika}dk`);
     } catch (e) {
       if (e.message?.includes("Missing Permissions")) return hata(message, "E2006");
       message.reply(`❌ Hata: ${e.message}`);
@@ -409,7 +471,7 @@ client.on("messageCreate", async (message) => {
     try {
       await user.timeout(null);
       message.reply(`🔊 **${user.user.username}** susturmadan çıkarıldı.`);
-      await log(message.guild, `Susturma kaldır: ${user.user.username} (Mod: ${message.author.username})`);
+      await logGonder(message.guild, `Susturma kaldır: ${user.user.username}`);
     } catch (e) { message.reply(`❌ Hata: ${e.message}`); }
     return;
   }
@@ -422,7 +484,7 @@ client.on("messageCreate", async (message) => {
     try {
       await user.ban({ reason });
       message.reply(`✅ **${user.user.username}** banlandı. Sebep: ${reason}`);
-      await log(message.guild, `Ban: ${user.user.username} → ${reason} (Mod: ${message.author.username})`);
+      await logGonder(message.guild, `Ban: ${user.user.username} → ${reason}`);
     } catch (e) {
       if (e.message?.includes("Missing Permissions")) return hata(message, "E2006");
       message.reply(`❌ Hata: ${e.message}`);
@@ -437,8 +499,8 @@ client.on("messageCreate", async (message) => {
     const reason = args.slice(1).join(" ") || "Sebep belirtilmedi";
     try {
       await user.kick(reason);
-      message.reply(`✅ **${user.user.username}** sunucudan atıldı. Sebep: ${reason}`);
-      await log(message.guild, `Kick: ${user.user.username} → ${reason} (Mod: ${message.author.username})`);
+      message.reply(`✅ **${user.user.username}** atıldı. Sebep: ${reason}`);
+      await logGonder(message.guild, `Kick: ${user.user.username} → ${reason}`);
     } catch (e) {
       if (e.message?.includes("Missing Permissions")) return hata(message, "E2006");
       message.reply(`❌ Hata: ${e.message}`);
@@ -450,11 +512,11 @@ client.on("messageCreate", async (message) => {
     if (!message.member?.permissions?.has("BanMembers")) return hata(message, "E2001");
     try {
       const bans = await message.guild.bans.fetch();
-      if (!bans.size) return message.reply("✅ Banlanan kullanıcı yok.");
+      if (!bans.size) return message.reply("✅ Ban listesi boş.");
       const embed = new EmbedBuilder()
         .setTitle(`🔨 Ban Listesi (${bans.size})`)
         .setColor(Colors.Red)
-        .setDescription(bans.map(b => `**${b.user.username}** — ${b.reason || "Sebep yok"}`).slice(0, 20).join("\n"))
+        .setDescription([...bans.values()].slice(0, 20).map(b => `**${b.user.username}** — ${b.reason || "Sebep yok"}`).join("\n"))
         .setTimestamp();
       message.reply({ embeds: [embed] });
     } catch (e) { message.reply(`❌ Hata: ${e.message}`); }
@@ -463,16 +525,16 @@ client.on("messageCreate", async (message) => {
 
   if (cmd === "duyuru") {
     if (!message.member?.permissions?.has("Administrator")) return hata(message, "E2007");
-    const duyuruMesaj = args.join(" ");
-    if (!duyuruMesaj) return hata(message, "E1004", "`!duyuru <mesaj>`");
+    const duyuru = args.join(" ");
+    if (!duyuru) return hata(message, "E1004", "`!duyuru <mesaj>`");
+    message.delete().catch(() => {});
     const embed = new EmbedBuilder()
       .setTitle("📢 DUYURU")
-      .setDescription(duyuruMesaj)
+      .setDescription(duyuru)
       .setColor(Colors.Red)
       .setFooter({ text: `Duyuran: ${message.author.username}` })
       .setTimestamp();
     message.channel.send({ embeds: [embed] });
-    message.delete().catch(() => {});
     return;
   }
 
@@ -480,11 +542,11 @@ client.on("messageCreate", async (message) => {
     if (!message.member?.permissions?.has("ManageChannels")) return hata(message, "E2005");
     try {
       const herkes = message.guild.roles.everyone;
-      const izinler = message.channel.permissionOverwrites.cache.get(herkes.id);
-      const kilitli = izinler?.deny?.has("SendMessages");
+      const mevcut = message.channel.permissionOverwrites.cache.get(herkes.id);
+      const kilitli = mevcut?.deny?.has("SendMessages");
       await message.channel.permissionOverwrites.edit(herkes, { SendMessages: kilitli ? null : false });
       message.reply(kilitli ? "🔓 Kanal kilidi açıldı." : "🔒 Kanal kilitlendi.");
-      await log(message.guild, `Kilit: #${message.channel.name} → ${kilitli ? "açıldı" : "kilitlendi"}`);
+      await logGonder(message.guild, `Kilit: #${message.channel.name} → ${kilitli ? "açıldı" : "kilitlendi"}`);
     } catch (e) { message.reply(`❌ Hata: ${e.message}`); }
     return;
   }
@@ -500,13 +562,13 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
   //  OYUN KOMUTLARI
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
 
   if (cmd === "zar") {
-    const sonuc = Math.floor(Math.random() * 6) + 1;
-    return message.reply(`🎲 Zar: **${sonuc}** ${ ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣"][sonuc - 1] }`);
+    const s = Math.floor(Math.random() * 6) + 1;
+    return message.reply(`🎲 Zar: **${s}** ${["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣"][s - 1]}`);
   }
 
   if (cmd === "yazitura") {
@@ -515,14 +577,13 @@ client.on("messageCreate", async (message) => {
 
   if (cmd === "sayitahmin") {
     const sayi = Math.floor(Math.random() * 10) + 1;
-    await message.reply("🔢 1-10 arası bir sayı düşündüm. 30 saniye içinde yaz!");
-    const filter = m => m.author.id === message.author.id && !isNaN(m.content);
+    await message.reply("🔢 1-10 arası bir sayı düşündüm! 30 saniyede tahmin et.");
     try {
-      const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ["time"] });
-      const tahmin = parseInt(collected.first().content);
+      const col = await message.channel.awaitMessages({ filter: m => m.author.id === message.author.id && !isNaN(m.content), max: 1, time: 30000, errors: ["time"] });
+      const tahmin = parseInt(col.first().content);
       if (tahmin === sayi) {
-        message.channel.send(`🎉 Doğru! Sayı **${sayi}** idi!`);
-        await paraEkle(message.guild.id, message.author.id, 50);
+        message.channel.send(`🎉 Doğru! Sayı **${sayi}** idi! +50 coin kazandın.`);
+        await dbParaEkle(message.guild.id, message.author.id, 50);
       } else {
         message.channel.send(`❌ Yanlış! Sayı **${sayi}** idi.`);
       }
@@ -532,16 +593,14 @@ client.on("messageCreate", async (message) => {
 
   if (cmd === "bilgiyarisma") {
     const soru = SORULAR[Math.floor(Math.random() * SORULAR.length)];
-    await message.reply(`❓ **${soru.soru}**\n30 saniye içinde cevapla!`);
-    const filter = m => m.author.id === message.author.id;
+    await message.reply(`❓ **${soru.soru}**\n⏰ 30 saniyede cevapla!`);
     try {
-      const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ["time"] });
-      const cevap = collected.first().content.toLowerCase().trim();
-      if (cevap === soru.cevap) {
-        message.channel.send(`🎉 Doğru! **${soru.cevap.toUpperCase()}** +100 coin kazandın!`);
-        await paraEkle(message.guild.id, message.author.id, 100);
+      const col = await message.channel.awaitMessages({ filter: m => m.author.id === message.author.id, max: 1, time: 30000, errors: ["time"] });
+      if (col.first().content.toLowerCase().trim() === soru.cevap) {
+        message.channel.send(`🎉 Doğru! **${soru.cevap.toUpperCase()}** +100 coin!`);
+        await dbParaEkle(message.guild.id, message.author.id, 100);
       } else {
-        message.channel.send(`❌ Yanlış! Doğru cevap: **${soru.cevap.toUpperCase()}**`);
+        message.channel.send(`❌ Yanlış! Cevap: **${soru.cevap.toUpperCase()}**`);
       }
     } catch { message.channel.send(`⏰ Süre doldu! Cevap: **${soru.cevap.toUpperCase()}**`); }
     return;
@@ -553,25 +612,25 @@ client.on("messageCreate", async (message) => {
 
   if (cmd === "8ball") {
     if (!args.length) return hata(message, "E1004", "`!8ball <soru>`");
-    const cevaplar = ["Kesinlikle evet! ✅","Hayır. ❌","Belki... 🤔","Şüpheliyim 😐","Çok olası! 🎯","Asla! 🚫","Evet! 💯","Şu an söylemek zor 🌀","Olabilir 🙂","Sanmıyorum 😅"];
-    return message.reply(`🎱 **${args.join(" ")}**\n> ${cevaplar[Math.floor(Math.random() * cevaplar.length)]}`);
+    const c = ["Kesinlikle evet! ✅","Hayır. ❌","Belki... 🤔","Şüpheliyim 😐","Çok olası! 🎯","Asla! 🚫","Evet! 💯","Şu an söylemek zor 🌀","Olabilir 🙂","Sanmıyorum 😅"];
+    return message.reply(`🎱 **${args.join(" ")}**\n> ${c[Math.floor(Math.random() * c.length)]}`);
   }
 
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
   //  GENEL KOMUTLAR
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
 
   if (cmd === "kullanici") {
-    const hedef = message.mentions.members?.first() || message.member;
+    const h = message.mentions.members?.first() || message.member;
     const embed = new EmbedBuilder()
-      .setTitle(`👤 ${hedef.user.username}`)
+      .setTitle(`👤 ${h.user.username}`)
       .setColor(Colors.Blurple)
       .addFields(
-        { name: "🆔 ID",               value: hedef.id, inline: true },
-        { name: "📅 Hesap Oluşturma",  value: new Date(hedef.user.createdAt).toLocaleDateString("tr-TR"), inline: true },
-        { name: "📥 Sunucuya Katılma", value: hedef.joinedAt ? new Date(hedef.joinedAt).toLocaleDateString("tr-TR") : "?", inline: true },
+        { name: "🆔 ID", value: h.id, inline: true },
+        { name: "📅 Hesap Oluşturma", value: new Date(h.user.createdAt).toLocaleDateString("tr-TR"), inline: true },
+        { name: "📥 Sunucuya Katılma", value: h.joinedAt ? new Date(h.joinedAt).toLocaleDateString("tr-TR") : "?", inline: true },
       ).setTimestamp();
-    if (hedef.user.avatarURL) embed.setThumbnail(hedef.user.avatarURL());
+    if (h.user.avatarURL) embed.setThumbnail(h.user.avatarURL());
     return message.reply({ embeds: [embed] });
   }
 
@@ -582,19 +641,19 @@ client.on("messageCreate", async (message) => {
       .setTitle(`📊 ${g.name}`)
       .setColor(Colors.Green)
       .addFields(
-        { name: "👥 Üye",        value: `${g.memberCount}`, inline: true },
-        { name: "🌐 ID",         value: g.id, inline: true },
-        { name: "📅 Kurulma",    value: new Date(g.createdAt).toLocaleDateString("tr-TR"), inline: true },
+        { name: "👥 Üye", value: `${g.memberCount}`, inline: true },
+        { name: "🌐 ID",  value: g.id, inline: true },
+        { name: "📅 Kurulma", value: new Date(g.createdAt).toLocaleDateString("tr-TR"), inline: true },
       ).setTimestamp();
     if (g.iconURL) embed.setThumbnail(g.iconURL());
     return message.reply({ embeds: [embed] });
   }
 
   if (cmd === "avatar") {
-    const hedef = message.mentions.members?.first() || message.member;
-    const url = hedef.user.avatarURL ? hedef.user.avatarURL({ size: 512 }) : null;
+    const h = message.mentions.members?.first() || message.member;
+    const url = h.user.avatarURL ? h.user.avatarURL({ size: 512 }) : null;
     if (!url) return message.reply("❌ Avatar bulunamadı.");
-    const embed = new EmbedBuilder().setTitle(`🖼️ ${hedef.user.username} avatarı`).setImage(url).setColor(Colors.Blurple);
+    const embed = new EmbedBuilder().setTitle(`🖼️ ${h.user.username}`).setImage(url).setColor(Colors.Blurple);
     return message.reply({ embeds: [embed] });
   }
 
@@ -602,24 +661,24 @@ client.on("messageCreate", async (message) => {
     const min = parseInt(args[0]) || 1;
     const max = parseInt(args[1]) || 100;
     if (min >= max) return hata(message, "E1002");
-    return message.reply(`🎲 ${min}-${max} arası rastgele sayı: **${Math.floor(Math.random() * (max - min + 1)) + min}**`);
+    return message.reply(`🎲 **${Math.floor(Math.random() * (max - min + 1)) + min}** (${min}-${max})`);
   }
 
   if (cmd === "istatistik") {
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, message.author.id);
+      const u = await dbKullanici(message.guild.id, message.author.id);
       const embed = new EmbedBuilder()
-        .setTitle(`📊 ${message.author.username} İstatistikleri`)
+        .setTitle(`📊 ${message.author.username}`)
         .setColor(Colors.Gold)
         .addFields(
-          { name: "💰 Para",    value: `${userData.para || 0} coin`, inline: true },
-          { name: "📈 Seviye",  value: `${userData.seviye || 1}`, inline: true },
-          { name: "⭐ XP",      value: `${userData.xp || 0}`, inline: true },
-          { name: "⚠️ Uyarı",  value: `${(userData.uyarilar || []).length}`, inline: true },
-          { name: "📦 Envanter",value: `${(userData.envanter || []).length} ürün`, inline: true },
+          { name: "💰 Para",    value: `${u.para || 0} coin`, inline: true },
+          { name: "📈 Seviye",  value: `${u.seviye || 1}`, inline: true },
+          { name: "⭐ XP",      value: `${u.xp || 0}`, inline: true },
+          { name: "⚠️ Uyarı",  value: `${(u.uyarilar || []).length}`, inline: true },
+          { name: "📦 Envanter",value: `${(u.envanter || []).length} ürün`, inline: true },
         ).setTimestamp();
       message.reply({ embeds: [embed] });
-    } catch (e) { hata(message, "E4003"); }
+    } catch { hata(message, "E4003"); }
     return;
   }
 
@@ -631,21 +690,21 @@ client.on("messageCreate", async (message) => {
   }
 
   if (cmd === "not") {
-    const notMesaj = args.join(" ");
-    if (!notMesaj) return hata(message, "E1004", "`!not <mesaj>`");
+    const metin = args.join(" ");
+    if (!metin) return hata(message, "E1004", "`!not <mesaj>`");
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, message.author.id);
-      const notlar = [...(userData.notlar || []), { id: Date.now(), metin: notMesaj, tarih: new Date() }];
-      await kullaniciyiGuncelle(message.guild.id, message.author.id, { notlar });
+      const u = await dbKullanici(message.guild.id, message.author.id);
+      const notlar = [...(u.notlar || []), { id: Date.now(), metin, tarih: new Date() }];
+      await dbGuncelle(message.guild.id, message.author.id, { notlar });
       message.reply(`📝 Not kaydedildi! ID: \`${notlar[notlar.length - 1].id}\``);
-    } catch (e) { hata(message, "E4002"); }
+    } catch { hata(message, "E4002"); }
     return;
   }
 
   if (cmd === "notlar") {
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, message.author.id);
-      const notlar = userData.notlar || [];
+      const u = await dbKullanici(message.guild.id, message.author.id);
+      const notlar = u.notlar || [];
       if (!notlar.length) return message.reply("📭 Hiç notun yok.");
       const embed = new EmbedBuilder()
         .setTitle("📝 Notların")
@@ -653,51 +712,47 @@ client.on("messageCreate", async (message) => {
         .setDescription(notlar.map(n => `\`${n.id}\` — ${n.metin}`).join("\n"))
         .setTimestamp();
       message.reply({ embeds: [embed] });
-    } catch (e) { hata(message, "E4003"); }
+    } catch { hata(message, "E4003"); }
     return;
   }
 
   if (cmd === "notsil") {
-    const notId = parseInt(args[0]);
-    if (!notId) return hata(message, "E1004", "`!notsil <id>`");
+    const id = parseInt(args[0]);
+    if (!id) return hata(message, "E1004", "`!notsil <id>`");
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, message.author.id);
-      const notlar = (userData.notlar || []).filter(n => n.id !== notId);
-      await kullaniciyiGuncelle(message.guild.id, message.author.id, { notlar });
-      message.reply(`✅ Not silindi.`);
-    } catch (e) { hata(message, "E4004"); }
+      const u = await dbKullanici(message.guild.id, message.author.id);
+      const notlar = (u.notlar || []).filter(n => n.id !== id);
+      await dbGuncelle(message.guild.id, message.author.id, { notlar });
+      message.reply("✅ Not silindi.");
+    } catch { hata(message, "E4004"); }
     return;
   }
 
   if (cmd === "hatirlat") {
-    if (args.length < 2) return hata(message, "E1004", "`!hatirlat <süre(1s/1m/1h/1d)> <mesaj>`");
+    if (args.length < 2) return hata(message, "E1004", "`!hatirlat <süre: 30s/5m/2h/1d> <mesaj>`");
     const ms = sureyi_parse(args[0]);
-    if (!ms) return message.reply("❌ Geçersiz süre. Örnek: `30s`, `5m`, `2h`, `1d`");
-    const hatirlatmaMesaj = args.slice(1).join(" ");
-    message.reply(`⏰ **${args[0]}** sonra seni hatırlatacağım: "${hatirlatmaMesaj}"`);
-    setTimeout(() => {
-      message.channel.send(`⏰ <@${message.author.id}> Hatırlatma: **${hatirlatmaMesaj}**`);
-    }, ms);
+    if (!ms) return message.reply("❌ Geçersiz süre. Örnek: `30s` `5m` `2h` `1d`");
+    const metin = args.slice(1).join(" ");
+    message.reply(`⏰ **${args[0]}** sonra hatırlatacağım: "${metin}"`);
+    setTimeout(() => message.channel.send(`⏰ <@${message.author.id}> Hatırlatma: **${metin}**`), ms);
     return;
   }
 
   if (cmd === "davet") {
-    message.reply(`📨 Botu sunucuna eklemek için: https://jubbio.com/bot/invite\n🌐 Destek sunucusu: https://jubbio.com/support`);
-    return;
+    return message.reply("📨 Bot davet linki: https://jubbio.com/bot/invite\n💬 Destek: https://jubbio.com/support");
   }
 
   if (cmd === "destek") {
-    message.reply(`🆘 Destek için: contact@jubbio.com\n💬 Destek sunucusu: https://jubbio.com/support`);
-    return;
+    return message.reply("🆘 Destek: contact@jubbio.com\n💬 Sunucu: https://jubbio.com/support");
   }
 
   if (cmd === "havadurumu") {
     if (!args.length) return hata(message, "E1004", "`!havadurumu <şehir>`");
     const sehir = args.join(" ");
-    const bekle = await message.reply(`🌤️ **${sehir}** için hava durumu alınıyor...`);
+    const bekle = await message.reply(`🌤️ **${sehir}** hava durumu alınıyor...`);
     try {
       const data = await havaDurumuGetir(sehir);
-      if (data.error) { console.error("[E3006]", data.error.message); return bekle.edit(HATALAR.E3006); }
+      if (data.error) { console.error("[E3006]", data.error.message); return bekle.edit(E.E3006); }
       const c = data.current, l = data.location;
       const embed = new EmbedBuilder()
         .setTitle(`🌤️ ${l.name}, ${l.country}`)
@@ -716,31 +771,30 @@ client.on("messageCreate", async (message) => {
       bekle.edit({ content: "", embeds: [embed] });
     } catch (e) {
       console.error("[E3005]", e.message);
-      bekle.edit(HATALAR[e.message?.includes("timeout") ? "E3007" : "E3005"]);
+      bekle.edit(E[e.message?.includes("timeout") ? "E3007" : "E3005"]);
     }
     return;
   }
 
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
   //  EKONOMİ KOMUTLARI
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
 
   if (cmd === "gunluk") {
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, message.author.id);
-      const sonGunluk = userData.sonGunluk ? new Date(userData.sonGunluk) : null;
+      const u = await dbKullanici(message.guild.id, message.author.id);
+      const son = u.sonGunluk ? new Date(u.sonGunluk) : null;
       const simdi = new Date();
-      if (sonGunluk && (simdi - sonGunluk) < 86400000) {
-        const kalan = 86400000 - (simdi - sonGunluk);
-        const saat = Math.floor(kalan / 3600000);
-        const dakika = Math.floor((kalan % 3600000) / 60000);
-        return message.reply(`⏰ ${HATALAR.E6003} Kalan süre: **${saat}s ${dakika}d**`);
+      if (son && (simdi - son) < 86400000) {
+        const kalan = 86400000 - (simdi - son);
+        const s = Math.floor(kalan / 3600000), d = Math.floor((kalan % 3600000) / 60000);
+        return message.reply(`⏰ Günlük ödülünü zaten aldın! Kalan: **${s}s ${d}d**`);
       }
       const miktar = Math.floor(Math.random() * 200) + 100;
-      await kullaniciyiGuncelle(message.guild.id, message.author.id, { sonGunluk: simdi });
-      await paraEkle(message.guild.id, message.author.id, miktar);
-      message.reply(`💰 Günlük ödülünü aldın: **+${miktar} coin**!`);
-    } catch (e) { hata(message, "E4002"); }
+      await dbGuncelle(message.guild.id, message.author.id, { sonGunluk: simdi });
+      await dbParaEkle(message.guild.id, message.author.id, miktar);
+      message.reply(`💰 Günlük ödül: **+${miktar} coin**! 🎉`);
+    } catch { hata(message, "E4002"); }
     return;
   }
 
@@ -748,20 +802,19 @@ client.on("messageCreate", async (message) => {
     const hedef = message.mentions.members?.first();
     if (!hedef || hedef.id === message.author.id) return hata(message, "E1003", "`!cal @kullanıcı`");
     try {
-      const hedefData = await kullaniciyiGetir(message.guild.id, hedef.id);
-      if ((hedefData.para || 0) <= 0) return message.reply("❌ Hedefin parası yok.");
-      const basari = Math.random() < 0.4;
-      if (basari) {
-        const miktar = Math.floor(Math.random() * Math.min(hedefData.para, 200)) + 1;
-        await paraEkle(message.guild.id, hedef.id, -miktar);
-        await paraEkle(message.guild.id, message.author.id, miktar);
-        message.reply(`🦹 **${hedef.user.username}** kullanıcısından **${miktar} coin** çaldın!`);
+      const hData = await dbKullanici(message.guild.id, hedef.id);
+      if ((hData.para || 0) <= 0) return message.reply("❌ Hedefin parası yok.");
+      if (Math.random() < 0.4) {
+        const miktar = Math.floor(Math.random() * Math.min(hData.para, 200)) + 1;
+        await dbParaEkle(message.guild.id, hedef.id, -miktar);
+        await dbParaEkle(message.guild.id, message.author.id, miktar);
+        message.reply(`🦹 **${hedef.user.username}**'den **${miktar} coin** çaldın!`);
       } else {
         const ceza = Math.floor(Math.random() * 100) + 50;
-        await paraEkle(message.guild.id, message.author.id, -ceza);
-        message.reply(`🚔 Çalma girişimi başarısız! **${ceza} coin** ceza ödedin.`);
+        await dbParaEkle(message.guild.id, message.author.id, -ceza);
+        message.reply(`🚔 Yakalandın! **${ceza} coin** ceza ödedin.`);
       }
-    } catch (e) { hata(message, "E4002"); }
+    } catch { hata(message, "E4002"); }
     return;
   }
 
@@ -776,41 +829,38 @@ client.on("messageCreate", async (message) => {
   }
 
   if (cmd === "satinal") {
-    const urunId = parseInt(args[0]);
-    const urun = MARKET.find(u => u.id === urunId);
+    const urun = MARKET.find(u => u.id === parseInt(args[0]));
     if (!urun) return hata(message, "E6004");
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, message.author.id);
-      if ((userData.para || 0) < urun.fiyat) return hata(message, "E6001");
-      await paraEkle(message.guild.id, message.author.id, -urun.fiyat);
-      const envanter = [...(userData.envanter || []), { ...urun, satin: new Date() }];
-      await kullaniciyiGuncelle(message.guild.id, message.author.id, { envanter });
-
-      // Sürpriz kutu özel efekti
+      const u = await dbKullanici(message.guild.id, message.author.id);
+      if ((u.para || 0) < urun.fiyat) return hata(message, "E6001");
+      await dbParaEkle(message.guild.id, message.author.id, -urun.fiyat);
+      const envanter = [...(u.envanter || []), { ...urun, satin: new Date() }];
+      await dbGuncelle(message.guild.id, message.author.id, { envanter });
       if (urun.id === 5) {
         const bonus = Math.floor(Math.random() * 451) + 50;
-        await paraEkle(message.guild.id, message.author.id, bonus);
+        await dbParaEkle(message.guild.id, message.author.id, bonus);
         message.reply(`🎁 Sürpriz kutu açıldı! **+${bonus} coin** kazandın!`);
       } else {
         message.reply(`✅ **${urun.isim}** satın alındı! **-${urun.fiyat} coin**`);
       }
-    } catch (e) { hata(message, "E4002"); }
+    } catch { hata(message, "E4002"); }
     return;
   }
 
   if (cmd === "envanter") {
-    const hedef = message.mentions.members?.first() || message.member;
+    const h = message.mentions.members?.first() || message.member;
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, hedef.id);
-      const envanter = userData.envanter || [];
-      if (!envanter.length) return message.reply(`📦 **${hedef.user.username}** envanteri boş.`);
+      const u = await dbKullanici(message.guild.id, h.id);
+      const env = u.envanter || [];
+      if (!env.length) return message.reply(`📦 **${h.user.username}** envanteri boş.`);
       const embed = new EmbedBuilder()
-        .setTitle(`📦 ${hedef.user.username} Envanteri`)
+        .setTitle(`📦 ${h.user.username} Envanteri`)
         .setColor(Colors.Orange)
-        .setDescription(envanter.map(u => `${u.isim} — ${u.aciklama}`).join("\n"))
+        .setDescription(env.map(i => `${i.isim} — ${i.aciklama}`).join("\n"))
         .setTimestamp();
       message.reply({ embeds: [embed] });
-    } catch (e) { hata(message, "E4003"); }
+    } catch { hata(message, "E4003"); }
     return;
   }
 
@@ -818,15 +868,12 @@ client.on("messageCreate", async (message) => {
     const miktar = parseInt(args[0]);
     if (!miktar || miktar < 1) return hata(message, "E6002");
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, message.author.id);
-      if ((userData.para || 0) < miktar) return hata(message, "E6001");
+      const u = await dbKullanici(message.guild.id, message.author.id);
+      if ((u.para || 0) < miktar) return hata(message, "E6001");
       const kazandi = Math.random() < 0.45;
-      await paraEkle(message.guild.id, message.author.id, kazandi ? miktar : -miktar);
-      message.reply(kazandi
-        ? `🎰 **Kazandın!** +**${miktar} coin** 🎉`
-        : `🎰 **Kaybettin!** -**${miktar} coin** 😢`
-      );
-    } catch (e) { hata(message, "E4002"); }
+      await dbParaEkle(message.guild.id, message.author.id, kazandi ? miktar : -miktar);
+      message.reply(kazandi ? `🎰 **Kazandın!** +**${miktar} coin** 🎉` : `🎰 **Kaybettin!** -**${miktar} coin** 😢`);
+    } catch { hata(message, "E4002"); }
     return;
   }
 
@@ -834,18 +881,18 @@ client.on("messageCreate", async (message) => {
     const miktar = parseInt(args[0]);
     if (!miktar || miktar < 10) return message.reply("❌ En az 10 coin girmelisin.");
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, message.author.id);
-      if ((userData.para || 0) < miktar) return hata(message, "E6001");
-      await paraEkle(message.guild.id, message.author.id, -miktar);
-      const sayi = Math.random();
-      let sonuc, kazanc;
-      if (sayi < 0.01) { kazanc = miktar * 10; sonuc = `🎊 JACKPOT! x10 → **+${kazanc} coin**`; }
-      else if (sayi < 0.1) { kazanc = miktar * 3; sonuc = `🎉 Büyük ödül! x3 → **+${kazanc} coin**`; }
-      else if (sayi < 0.3) { kazanc = miktar; sonuc = `✅ Para geri → **+${kazanc} coin**`; }
-      else { kazanc = 0; sonuc = `❌ Kaybettin!`; }
-      if (kazanc > 0) await paraEkle(message.guild.id, message.author.id, kazanc);
-      message.reply(`🎟️ Piyango sonucu: ${sonuc}`);
-    } catch (e) { hata(message, "E4002"); }
+      const u = await dbKullanici(message.guild.id, message.author.id);
+      if ((u.para || 0) < miktar) return hata(message, "E6001");
+      await dbParaEkle(message.guild.id, message.author.id, -miktar);
+      const r = Math.random();
+      let mesaj, kazanc = 0;
+      if (r < 0.01)      { kazanc = miktar * 10; mesaj = `🎊 JACKPOT! x10 → **+${kazanc} coin**`; }
+      else if (r < 0.1)  { kazanc = miktar * 3;  mesaj = `🎉 Büyük ödül! x3 → **+${kazanc} coin**`; }
+      else if (r < 0.3)  { kazanc = miktar;       mesaj = `✅ Para geri → **+${kazanc} coin**`; }
+      else               {                         mesaj = "❌ Kaybettin!"; }
+      if (kazanc > 0) await dbParaEkle(message.guild.id, message.author.id, kazanc);
+      message.reply(`🎟️ Piyango: ${mesaj}`);
+    } catch { hata(message, "E4002"); }
     return;
   }
 
@@ -856,46 +903,43 @@ client.on("messageCreate", async (message) => {
     if (!miktar || miktar < 1) return hata(message, "E6002");
     if (hedef.id === message.author.id) return message.reply("❌ Kendine transfer yapamazsın.");
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, message.author.id);
-      if ((userData.para || 0) < miktar) return hata(message, "E6001");
-      await paraEkle(message.guild.id, message.author.id, -miktar);
-      await paraEkle(message.guild.id, hedef.id, miktar);
+      const u = await dbKullanici(message.guild.id, message.author.id);
+      if ((u.para || 0) < miktar) return hata(message, "E6001");
+      await dbParaEkle(message.guild.id, message.author.id, -miktar);
+      await dbParaEkle(message.guild.id, hedef.id, miktar);
       message.reply(`💸 **${hedef.user.username}**'e **${miktar} coin** transfer edildi.`);
-    } catch (e) { hata(message, "E4002"); }
+    } catch { hata(message, "E4002"); }
     return;
   }
 
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
   //  SEVİYE KOMUTLARI
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
 
   if (cmd === "seviye") {
-    const hedef = message.mentions.members?.first() || message.member;
+    const h = message.mentions.members?.first() || message.member;
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, hedef.id);
-      const seviye = userData.seviye || 1;
-      const xp = userData.xp || 0;
-      const sonrakiXp = Math.pow((seviye + 1) / 0.1, 2);
+      const u = await dbKullanici(message.guild.id, h.id);
+      const seviye = u.seviye || 1;
+      const xp = u.xp || 0;
+      const sonrakiXp = Math.floor(Math.pow((seviye + 1) / 0.1, 2));
       const embed = new EmbedBuilder()
-        .setTitle(`📈 ${hedef.user.username} Seviyesi`)
+        .setTitle(`📈 ${h.user.username}`)
         .setColor(Colors.Green)
         .addFields(
-          { name: "🏆 Seviye", value: `${seviye}`, inline: true },
-          { name: "⭐ XP",     value: `${xp}`, inline: true },
-          { name: "🎯 Sonraki Seviye", value: `${Math.floor(sonrakiXp)} XP`, inline: true },
+          { name: "🏆 Seviye",        value: `${seviye}`, inline: true },
+          { name: "⭐ XP",             value: `${xp}`, inline: true },
+          { name: "🎯 Sonraki Seviye", value: `${sonrakiXp} XP`, inline: true },
         ).setTimestamp();
       message.reply({ embeds: [embed] });
-    } catch (e) { hata(message, "E4003"); }
+    } catch { hata(message, "E4003"); }
     return;
   }
 
   if (cmd === "liderlik") {
     try {
-      const top = await db.collection("kullanicilar")
-        .find({ guildId: message.guild.id })
-        .sort({ xp: -1 })
-        .limit(10)
-        .toArray();
+      if (!db) return hata(message, "E4001");
+      const top = await db.collection("kullanicilar").find({ guildId: message.guild.id }).sort({ xp: -1 }).limit(10).toArray();
       if (!top.length) return message.reply("📭 Henüz veri yok.");
       const embed = new EmbedBuilder()
         .setTitle("🏆 XP Liderlik Tablosu")
@@ -903,22 +947,22 @@ client.on("messageCreate", async (message) => {
         .setDescription(top.map((u, i) => `**${i + 1}.** <@${u.userId}> — Seviye **${u.seviye || 1}** (${u.xp || 0} XP)`).join("\n"))
         .setTimestamp();
       message.reply({ embeds: [embed] });
-    } catch (e) { hata(message, "E4003"); }
+    } catch { hata(message, "E4003"); }
     return;
   }
 
   if (cmd === "xp") {
-    const hedef = message.mentions.members?.first() || message.member;
+    const h = message.mentions.members?.first() || message.member;
     try {
-      const userData = await kullaniciyiGetir(message.guild.id, hedef.id);
-      message.reply(`⭐ **${hedef.user.username}** — ${userData.xp || 0} XP | Seviye **${userData.seviye || 1}**`);
-    } catch (e) { hata(message, "E4003"); }
+      const u = await dbKullanici(message.guild.id, h.id);
+      message.reply(`⭐ **${h.user.username}** — ${u.xp || 0} XP | Seviye **${u.seviye || 1}**`);
+    } catch { hata(message, "E4003"); }
     return;
   }
 
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
   //  YAPAY ZEKA KOMUTLARI
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
 
   if (cmd === "ai" || cmd === "soru") {
     if (!args.length) return hata(message, "E1004", "`!ai <soru>`");
@@ -929,25 +973,22 @@ client.on("messageCreate", async (message) => {
       const embed = new EmbedBuilder()
         .setTitle("🤖 AIRBOT AI")
         .addFields({ name: "❓ Soru", value: soru }, { name: "💬 Cevap", value: cevap.slice(0, 1024) })
-        .setColor(Colors.Gold)
-        .setFooter({ text: "Gemini AI" })
-        .setTimestamp();
+        .setColor(Colors.Gold).setFooter({ text: "Gemini AI" }).setTimestamp();
       bekle.edit({ content: "", embeds: [embed] });
     } catch (e) {
       console.error("[E3001]", e.message);
-      bekle.edit(HATALAR[e.message?.includes("API key") ? "E3002" : "E3001"]);
+      bekle.edit(E[e.message?.includes("API key") ? "E3002" : "E3001"]);
     }
     return;
   }
 
   if (cmd === "sohbet") {
     if (!args.length) return hata(message, "E1004", "`!sohbet <mesaj>`");
-    const mesaj = args.join(" ");
     const bekle = await message.reply("💬 Yazıyor...");
     try {
-      const cevap = await geminiSor(`Bir Jubbio sohbet botusun. Kısaca, samimi ve Türkçe cevap ver: ${mesaj}`);
+      const cevap = await geminiSor(`Jubbio platformunda samimi bir sohbet botusun. Kısa, samimi, Türkçe cevap ver: ${args.join(" ")}`);
       bekle.edit(cevap.slice(0, 2000));
-    } catch (e) { bekle.edit(HATALAR.E3001); }
+    } catch { bekle.edit(E.E3001); }
     return;
   }
 
@@ -956,10 +997,10 @@ client.on("messageCreate", async (message) => {
     const metin = args.join(" ");
     const bekle = await message.reply("🔍 Yorumlanıyor...");
     try {
-      const cevap = await geminiSor(`Aşağıdaki metni kısaca yorumla ve analiz et (Türkçe): "${metin}"`);
+      const cevap = await geminiSor(`Şu metni kısaca Türkçe yorumla ve analiz et: "${metin}"`);
       const embed = new EmbedBuilder().setTitle("🔍 Yorum").addFields({ name: "📝 Metin", value: metin }, { name: "💡 Yorum", value: cevap.slice(0, 1024) }).setColor(Colors.Purple).setTimestamp();
       bekle.edit({ content: "", embeds: [embed] });
-    } catch (e) { bekle.edit(HATALAR.E3001); }
+    } catch { bekle.edit(E.E3001); }
     return;
   }
 
@@ -968,10 +1009,10 @@ client.on("messageCreate", async (message) => {
     const metin = args.join(" ");
     const bekle = await message.reply("📄 Özetleniyor...");
     try {
-      const cevap = await geminiSor(`Aşağıdaki metni kısaca özetle (Türkçe, 3-4 cümle): "${metin}"`);
+      const cevap = await geminiSor(`Şu metni 3-4 cümleyle Türkçe özetle: "${metin}"`);
       const embed = new EmbedBuilder().setTitle("📄 Özet").addFields({ name: "📝 Metin", value: metin.slice(0, 500) }, { name: "💡 Özet", value: cevap.slice(0, 1024) }).setColor(Colors.Blue).setTimestamp();
       bekle.edit({ content: "", embeds: [embed] });
-    } catch (e) { bekle.edit(HATALAR.E3001); }
+    } catch { bekle.edit(E.E3001); }
     return;
   }
 
@@ -981,16 +1022,16 @@ client.on("messageCreate", async (message) => {
     const metin = args.slice(1).join(" ");
     const bekle = await message.reply("🌐 Çevriliyor...");
     try {
-      const cevap = await geminiSor(`"${metin}" metnini ${dil} diline çevir. Sadece çeviriyi yaz, açıklama yapma.`);
+      const cevap = await geminiSor(`"${metin}" metnini ${dil} diline çevir. Sadece çeviriyi yaz.`);
       const embed = new EmbedBuilder().setTitle("🌐 Çeviri").addFields({ name: "📝 Orijinal", value: metin }, { name: `🗣️ ${dil}`, value: cevap.slice(0, 1024) }).setColor(Colors.Aqua).setTimestamp();
       bekle.edit({ content: "", embeds: [embed] });
-    } catch (e) { bekle.edit(HATALAR.E3001); }
+    } catch { bekle.edit(E.E3001); }
     return;
   }
 
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
   //  BOT AYARLARI
-  // ════════════════════════════════════════════
+  // ══════════════════════════════════════════
 
   if (cmd === "logkanal") {
     if (!message.member?.permissions?.has("Administrator")) return hata(message, "E2007");
@@ -1004,9 +1045,9 @@ client.on("messageCreate", async (message) => {
   if (cmd === "kufurlistesi") {
     if (!message.member?.permissions?.has("ManageMessages")) return hata(message, "E2004");
     const kelime = args[0];
-    if (!kelime) return message.reply("📋 Kullanım: `!kufurlistesi <kelime>` — kelime ekler/kaldırır");
-    if (!kufurListesi.has(message.guild.id)) kufurListesi.set(message.guild.id, new Set());
-    const liste = kufurListesi.get(message.guild.id);
+    if (!kelime) return message.reply("📋 `!kufurlistesi <kelime>` — ekler veya kaldırır");
+    if (!kufurler.has(message.guild.id)) kufurler.set(message.guild.id, new Set());
+    const liste = kufurler.get(message.guild.id);
     if (liste.has(kelime.toLowerCase())) {
       liste.delete(kelime.toLowerCase());
       message.reply(`✅ **${kelime}** küfür listesinden kaldırıldı.`);
@@ -1018,42 +1059,45 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-// ─── Slash Komutları (/ prefix - Müzik) ──────────────────────────
+// ─── Slash Komut Eventleri ────────────────────────────────────────
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isCommand()) return;
   const { commandName } = interaction;
 
+  // ── /sesligel ────────────────────────────────────────────────
   if (commandName === "sesligel") {
-    const voiceChannelId = interaction.member?.voice?.channelId;
-    if (!voiceChannelId) return interaction.reply({ content: HATALAR.E5001, ephemeral: true });
+    const vcId = interaction.member?.voice?.channelId;
+    if (!vcId) return interaction.reply({ content: E.E5001, ephemeral: true });
     try {
-      const connection = joinVoiceChannel({ channelId: voiceChannelId, guildId: interaction.guildId, adapterCreator: client.voice.adapters.get(interaction.guildId) });
-      connection.subscribe(getPlayer(interaction.guildId));
+      const conn = joinVoiceChannel({ channelId: vcId, guildId: interaction.guildId, adapterCreator: client.voice.adapters.get(interaction.guildId) });
+      conn.subscribe(getPlayer(interaction.guildId));
       interaction.reply("✅ Ses kanalına girildi!");
-    } catch (e) { console.error("[E5005]", e.message); interaction.reply({ content: HATALAR.E5005, ephemeral: true }); }
+    } catch (e) { console.error("[E5005]", e.message); interaction.reply({ content: E.E5005, ephemeral: true }); }
     return;
   }
 
+  // ── /sesliçık ────────────────────────────────────────────────
   if (commandName === "sesliçık") {
-    const connection = getVoiceConnection(interaction.guildId);
-    if (!connection) return interaction.reply({ content: HATALAR.E5003, ephemeral: true });
-    connection.destroy();
+    const conn = getVoiceConnection(interaction.guildId);
+    if (!conn) return interaction.reply({ content: E.E5003, ephemeral: true });
+    conn.destroy();
     queues.delete(interaction.guildId);
     players.delete(interaction.guildId);
     interaction.reply("👋 Ses kanalından çıkıldı.");
     return;
   }
 
+  // ── /çal ve /oynat ───────────────────────────────────────────
   if (commandName === "çal" || commandName === "oynat") {
     const sorgu = interaction.options.getString("şarkı", true);
-    const voiceChannelId = interaction.member?.voice?.channelId;
-    if (!voiceChannelId) return interaction.reply({ content: HATALAR.E5001, ephemeral: true });
+    const vcId  = interaction.member?.voice?.channelId;
+    if (!vcId) return interaction.reply({ content: E.E5001, ephemeral: true });
     await interaction.deferReply();
     try {
-      let connection = getVoiceConnection(interaction.guildId);
-      if (!connection) {
-        connection = joinVoiceChannel({ channelId: voiceChannelId, guildId: interaction.guildId, adapterCreator: client.voice.adapters.get(interaction.guildId) });
-        connection.subscribe(getPlayer(interaction.guildId));
+      let conn = getVoiceConnection(interaction.guildId);
+      if (!conn) {
+        conn = joinVoiceChannel({ channelId: vcId, guildId: interaction.guildId, adapterCreator: client.voice.adapters.get(interaction.guildId) });
+        conn.subscribe(getPlayer(interaction.guildId));
       }
       const queue = getQueue(interaction.guildId);
       queue.songs.push({ url: sorgu, title: sorgu, requestedBy: interaction.user.id });
@@ -1063,13 +1107,14 @@ client.on("interactionCreate", async (interaction) => {
       } else {
         await interaction.editReply(`✅ Kuyruğa eklendi: **${sorgu}** (Sıra: ${queue.songs.length})`);
       }
-    } catch (e) { console.error("[E5005]", e.message); interaction.editReply(HATALAR.E5005); }
+    } catch (e) { console.error("[E5005]", e.message); interaction.editReply(E.E5005); }
     return;
   }
 
+  // ── /dur ─────────────────────────────────────────────────────
   if (commandName === "dur") {
     const queue = getQueue(interaction.guildId);
-    if (!queue.playing) return interaction.reply({ content: HATALAR.E5002, ephemeral: true });
+    if (!queue.playing) return interaction.reply({ content: E.E5002, ephemeral: true });
     getPlayer(interaction.guildId).stop();
     queue.songs = [];
     queue.playing = false;
@@ -1077,19 +1122,22 @@ client.on("interactionCreate", async (interaction) => {
     return;
   }
 
+  // ── /geç ─────────────────────────────────────────────────────
   if (commandName === "geç") {
     const queue = getQueue(interaction.guildId);
-    if (!queue.playing || !queue.songs.length) return interaction.reply({ content: HATALAR.E5006, ephemeral: true });
+    if (!queue.playing || !queue.songs.length) return interaction.reply({ content: E.E5006, ephemeral: true });
     getPlayer(interaction.guildId).stop();
     interaction.reply("⏭️ Şarkı atlandı!");
     return;
   }
 
+  // ── /geri ────────────────────────────────────────────────────
   if (commandName === "geri") {
-    interaction.reply("⏮️ Önceki şarkıya dönme özelliği yakında gelecek!");
+    interaction.reply("⏮️ Önceki şarkıya dönme özelliği yakında!");
     return;
   }
 
+  // ── /sıra ────────────────────────────────────────────────────
   if (commandName === "sıra") {
     const queue = getQueue(interaction.guildId);
     if (!queue.songs.length) return interaction.reply({ content: "📭 Kuyruk boş.", ephemeral: true });
@@ -1101,14 +1149,15 @@ client.on("interactionCreate", async (interaction) => {
     return;
   }
 
+  // ── /öneri ───────────────────────────────────────────────────
   if (commandName === "öneri") {
-    const tur = interaction.options.getString("müzik türü") || "pop";
-    const bekle = await interaction.reply({ content: `🎵 **${tur}** türünde müzik önerileri getiriliyor...`, fetchReply: true });
+    const tur = interaction.options.getString("tür") || "pop";
+    await interaction.deferReply();
     try {
-      const cevap = await geminiSor(`${tur} türünde 5 adet Türkçe şarkı öner. Sadece liste halinde yaz: Sanatçı - Şarkı adı`);
+      const cevap = await geminiSor(`${tur} türünde 5 adet Türkçe şarkı öner. Sadece liste: Sanatçı - Şarkı adı`);
       const embed = new EmbedBuilder().setTitle(`🎵 ${tur} Önerileri`).setDescription(cevap.slice(0, 1024)).setColor(Colors.Purple).setTimestamp();
-      interaction.editReply({ content: "", embeds: [embed] });
-    } catch (e) { interaction.editReply(HATALAR.E3001); }
+      interaction.editReply({ embeds: [embed] });
+    } catch { interaction.editReply(E.E3001); }
     return;
   }
 });
