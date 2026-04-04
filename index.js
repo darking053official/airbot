@@ -4,6 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════╝
 
 const { Client, GatewayIntentBits, EmbedBuilder, Colors } = require("@jubbio/core");
+const http = require('http');
 const {
   joinVoiceChannel,
   createAudioPlayer,
@@ -15,13 +16,27 @@ const {
 const { MongoClient } = require("mongodb");
 const fetch = require("node-fetch");
 
+// ─── Http Server ───────────────────────────────────────────
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ 
+    status: 'Çalıştı Laaaan', 
+    bot: 'AIRBOT',
+    time: new Date().toISOString() 
+  }));
+  
+});
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => {
+  console.log(`✅ HTTP sunucusu ${PORT} portunda çalışıyor`);
+});
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
 const GEMINI_KEY  = process.env.GEMINI_API_KEY;
 const GNEWS_KEY   = process.env.GNEWS_API_KEY;
 const MONGO_URL   = process.env.MONGO_URL;
 const WEATHER_KEY = process.env.WEATHER_API_KEY;
-
+const PORT = process.env.PORT
 // ─── Hata Kodları ─────────────────────────────────────────────────
 const HATALAR = {
   // Komut Hataları (1xxx)
