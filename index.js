@@ -368,7 +368,16 @@ async function logGonder(guild, mesaj) {
 // ─── Ready ────────────────────────────────────────────────────────
 client.on("ready", async () => {
   console.log(`✅ ${client.user?.username} çevrimiçi!`);
+  console.log(`📊 ${client.guilds.size} sunucuda aktif.`);
+  console.log(`🆔 Application ID: ${client.applicationId}`);
   await slashKomutlariKaydet();
+});
+
+// ─── Debug: Her mesajı logla ─────────────────────────────────────
+client.on("raw", (eventType, data) => {
+  if (eventType === "MESSAGE_CREATE") {
+    console.log(`[RAW] Mesaj alındı: ${JSON.stringify(data).slice(0, 100)}`);
+  }
 });
 
 // ─── messageCreate ────────────────────────────────────────────────
