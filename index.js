@@ -3,10 +3,10 @@
 // ║  Yönetici | Oyun | Genel | Ekonomi | Seviye | Müzik | AI       ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
-const { Client, GatewayIntentBits, EmbedBuilder, Colors } = require("@jubbio/core");
+const { Client, GatewayIntentBits, EmbedBuilder, Colors, SlashCommandBuilder } = require("@jubbio/core");
 const {
   joinVoiceChannel, createAudioPlayer, createAudioResourceFromUrl,
-  probeAudioInfo, getVoiceConnection, AudioPlayerStatus,
+  probeAudioInfo, getVoiceConnection, AudioPlayerStatus, VoiceConnectionStatus,
 } = require("@jubbio/voice");
 const { MongoClient } = require("mongodb");
 const fetch = require("node-fetch");
@@ -125,105 +125,145 @@ const client = new Client({
 
 // ─── Slash Komutları Tanımları ────────────────────────────────────
 const SLASH_KOMUTLAR = [
-  {
-    name: "sesligel",
-    description: "Botu ses kanalına çeker.",
-  },
-  {
-    name: "sesliçık",
-    description: "Botu ses kanalından çıkarır.",
-  },
-  {
-    name: "çal",
-    description: "Şarkı çalar veya kuyruğa ekler.",
-    options: [
-      { type: 3, name: "şarkı", description: "Şarkı adı veya URL", required: true },
-    ],
-  },
-  {
-    name: "oynat",
-    description: "Şarkı çalar veya kuyruğa ekler.",
-    options: [
-      { type: 3, name: "şarkı", description: "Şarkı adı veya URL", required: true },
-    ],
-  },
-  {
-    name: "dur",
-    description: "Müziği durdurur ve kuyruğu temizler.",
-  },
-  {
-    name: "geç",
-    description: "Mevcut şarkıyı atlar.",
-  },
-  {
-    name: "geri",
-    description: "Önceki şarkıya döner.",
-  },
-  {
-    name: "sıra",
-    description: "Müzik kuyruğunu gösterir.",
-  },
-  {
-    name: "öneri",
-    description: "Müzik türüne göre öneri yapar.",
-    options: [
-      { type: 3, name: "tür", description: "Müzik türü (pop, rock, rap...)", required: true },
-    ],
-  },
+  new SlashCommandBuilder()
+    .setName("sesligel")
+    .setDescription("Botu ses kanalına çeker.")
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("sesliçık")
+    .setDescription("Botu ses kanalından çıkarır.")
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("çal")
+    .setDescription("Şarkı çalar veya kuyruğa ekler.")
+    .addStringOption(o => o.setName("şarkı").setDescription("Şarkı adı veya URL").setRequired(true))
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("oynat")
+    .setDescription("Şarkı çalar veya kuyruğa ekler.")
+    .addStringOption(o => o.setName("şarkı").setDescription("Şarkı adı veya URL").setRequired(true))
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("dur")
+    .setDescription("Müziği durdurur, kuyruğu temizler ve kanaldan çıkar.")
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("geç")
+    .setDescription("Mevcut şarkıyı atlayıp sıradakini çalar.")
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("geri")
+    .setDescription("Önceki şarkıya döner.")
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("sıra")
+    .setDescription("Müzik kuyruğunu gösterir.")
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("öneri")
+    .setDescription("Müzik türüne göre şarkı önerir.")
+    .addStringOption(o => o.setName("tür").setDescription("Müzik türü (pop, rock, rap, türkçe...)").setRequired(true))
+    .toJSON(),
 ];
 
 // ─── Slash Komutlarını Kaydet ─────────────────────────────────────
+// API.md'e göre: client.rest.registerGlobalCommands([...])
 async function slashKomutlariKaydet() {
   console.log("📝 Slash komutları kaydediliyor...");
-  for (const komut of SLASH_KOMUTLAR) {
-    try {
-      await client.application.commands.create(komut);
-      console.log(`  ✅ /${komut.name} kaydedildi.`);
-    } catch (e) {
-      console.error(`  ❌ /${komut.name} kaydedilemedi: ${e.message}`);
+  try {
+    // Global kayıt (tüm sunucularda geçerli, ~1 saat yayılım)
+    await client.rest.registerGlobalCommands(SLASH_KOMUTLAR);
+    console.log(`✅ ${SLASH_KOMUTLAR.length} slash komutu global olarak kaydedildi.`);
+    SLASH_KOMUTLAR.forEach(k => console.log(`  ✅ /${k.name}`));
+  } catch (e) {
+    console.error("❌ Global kayıt başarısız:", e.message);
+    // Yedek: her sunucuya tek tek kaydet
+    console.log("🔄 Sunucu bazlı kayıt deneniyor...");
+    for (const [guildId] of client.guilds) {
+      try {
+        await client.rest.registerGuildCommands(guildId, SLASH_KOMUTLAR);
+        console.log(`  ✅ Guild ${guildId} komutları kaydedildi.`);
+      } catch (ge) {
+        console.error(`  ❌ Guild ${guildId}: ${ge.message}`);
+      }
     }
   }
-  console.log(`📝 Toplam ${SLASH_KOMUTLAR.length} slash komutu işlendi.`);
 }
 
 // ─── Müzik ───────────────────────────────────────────────────────
-const queues  = new Map();
-const players = new Map();
+const queues   = new Map(); // guildId -> Song[]
+const players  = new Map(); // guildId -> AudioPlayer
+const channels = new Map(); // guildId -> TextChannel (şarkı mesajları için)
 
 function getPlayer(guildId) {
-  if (!players.has(guildId)) players.set(guildId, createAudioPlayer());
-  return players.get(guildId);
+  if (players.has(guildId)) return players.get(guildId);
+
+  const player = createAudioPlayer();
+  players.set(guildId, player);
+
+  // Resmi örnekteki gibi stateChange ile Idle dinle
+  player.on("stateChange", (oldState, newState) => {
+    if (newState.status === AudioPlayerStatus.Idle && oldState.status !== AudioPlayerStatus.Idle) {
+      const queue = queues.get(guildId) || [];
+      queue.shift();
+      queues.set(guildId, queue);
+      playNext(guildId);
+    }
+  });
+
+  player.on("error", (err) => {
+    console.error(`[E5004] Guild ${guildId}: ${err.message}`);
+    const ch = channels.get(guildId);
+    if (ch) ch.send(E.E5004);
+    const queue = queues.get(guildId) || [];
+    queue.shift();
+    queues.set(guildId, queue);
+    playNext(guildId);
+  });
+
+  return player;
 }
 
-function getQueue(guildId) {
-  if (!queues.has(guildId)) queues.set(guildId, { songs: [], playing: false, volume: 100 });
-  return queues.get(guildId);
-}
+async function playNext(guildId) {
+  const queue = queues.get(guildId) || [];
+  const ch = channels.get(guildId);
 
-async function playSong(guildId, channel) {
-  const queue = getQueue(guildId);
-  if (!queue.songs.length) { queue.playing = false; return; }
-  const song = queue.songs[0];
-  queue.playing = true;
+  if (queue.length === 0) {
+    console.log(`[Müzik] Guild ${guildId} kuyruğu bitti.`);
+    return;
+  }
+
+  const song = queue[0];
+  console.log(`[Müzik] Çalıyor: ${song.title}`);
+
   try {
-    const info     = await probeAudioInfo(song.url);
-    const resource = createAudioResourceFromUrl(info.url);
-    const player   = getPlayer(guildId);
+    const resource = createAudioResourceFromUrl(song.url, { metadata: song });
+    const player = getPlayer(guildId);
     player.play(resource);
-    player.once(AudioPlayerStatus.Idle, () => { queue.songs.shift(); playSong(guildId, channel); });
-    const embed = new EmbedBuilder()
-      .setTitle("🎵 Şimdi Çalıyor")
-      .setDescription(`**${song.title}**`)
-      .setColor(Colors.Blue)
-      .addFields({ name: "İsteyen", value: `<@${song.requestedBy}>`, inline: true })
-      .setTimestamp();
-    if (info.thumbnail) embed.setThumbnail(info.thumbnail);
-    channel.send({ embeds: [embed] });
+
+    if (ch) {
+      const embed = new EmbedBuilder()
+        .setTitle("🎵 Şimdi Çalıyor")
+        .setDescription(`**${song.title}**`)
+        .setColor(Colors.Blue)
+        .addFields({ name: "İsteyen", value: `<@${song.requestedBy}>`, inline: true })
+        .setTimestamp();
+      ch.send({ embeds: [embed] });
+    }
   } catch (err) {
     console.error(`[E5004] ${err.message}`);
-    channel.send(E.E5004);
-    queue.songs.shift();
-    playSong(guildId, channel);
+    if (ch) ch.send(E.E5004);
+    queue.shift();
+    queues.set(guildId, queue);
+    playNext(guildId);
   }
 }
 
@@ -1069,8 +1109,16 @@ client.on("interactionCreate", async (interaction) => {
     const vcId = interaction.member?.voice?.channelId;
     if (!vcId) return interaction.reply({ content: E.E5001, ephemeral: true });
     try {
-      const conn = joinVoiceChannel({ channelId: vcId, guildId: interaction.guildId, adapterCreator: client.voice.adapters.get(interaction.guildId) });
-      conn.subscribe(getPlayer(interaction.guildId));
+      let conn = getVoiceConnection(interaction.guildId);
+      if (!conn || conn.state.status === VoiceConnectionStatus.Disconnected) {
+        conn = joinVoiceChannel({
+          channelId: vcId,
+          guildId: interaction.guildId,
+          adapterCreator: client.voice.adapters.get(interaction.guildId),
+        });
+        conn.subscribe(getPlayer(interaction.guildId));
+      }
+      channels.set(interaction.guildId, interaction.channel);
       interaction.reply("✅ Ses kanalına girildi!");
     } catch (e) { console.error("[E5005]", e.message); interaction.reply({ content: E.E5005, ephemeral: true }); }
     return;
@@ -1094,39 +1142,68 @@ client.on("interactionCreate", async (interaction) => {
     if (!vcId) return interaction.reply({ content: E.E5001, ephemeral: true });
     await interaction.deferReply();
     try {
+      // Ses kanalına bağlan
       let conn = getVoiceConnection(interaction.guildId);
-      if (!conn) {
-        conn = joinVoiceChannel({ channelId: vcId, guildId: interaction.guildId, adapterCreator: client.voice.adapters.get(interaction.guildId) });
+      if (!conn || conn.state.status === VoiceConnectionStatus.Disconnected) {
+        conn = joinVoiceChannel({
+          channelId: vcId,
+          guildId: interaction.guildId,
+          adapterCreator: client.voice.adapters.get(interaction.guildId),
+        });
         conn.subscribe(getPlayer(interaction.guildId));
       }
-      const queue = getQueue(interaction.guildId);
-      queue.songs.push({ url: sorgu, title: sorgu, requestedBy: interaction.user.id });
-      if (!queue.playing) {
-        await playSong(interaction.guildId, interaction.channel);
-        await interaction.editReply("▶️ Çalınıyor!");
+
+      // Metin kanalını kaydet (şarkı embed'leri için)
+      channels.set(interaction.guildId, interaction.channel);
+
+      // Şarkı bilgisini al
+      const info = await probeAudioInfo(sorgu);
+      const song = {
+        url: sorgu,
+        title: info.title || sorgu,
+        duration: info.duration || 0,
+        requestedBy: interaction.user.id,
+      };
+
+      // Kuyruğa ekle
+      const queue = queues.get(interaction.guildId) || [];
+      queue.push(song);
+      queues.set(interaction.guildId, queue);
+
+      // Çalmıyorsa başlat
+      const player = getPlayer(interaction.guildId);
+      if (player.state.status === AudioPlayerStatus.Idle) {
+        playNext(interaction.guildId);
+        await interaction.editReply(`▶️ Çalıyor: **${song.title}**`);
       } else {
-        await interaction.editReply(`✅ Kuyruğa eklendi: **${sorgu}** (Sıra: ${queue.songs.length})`);
+        await interaction.editReply(`✅ Kuyruğa eklendi: **${song.title}** (Sıra: ${queue.length})`);
       }
-    } catch (e) { console.error("[E5005]", e.message); interaction.editReply(E.E5005); }
+    } catch (e) { console.error("[E5005]", e.message); interaction.editReply(`${E.E5005}
+\`${e.message}\``); }
     return;
   }
 
   // ── /dur ─────────────────────────────────────────────────────
   if (commandName === "dur") {
-    const queue = getQueue(interaction.guildId);
-    if (!queue.playing) return interaction.reply({ content: E.E5002, ephemeral: true });
-    getPlayer(interaction.guildId).stop();
-    queue.songs = [];
-    queue.playing = false;
-    interaction.reply("⏹️ Müzik durduruldu.");
+    const player = getPlayer(interaction.guildId);
+    if (player.state.status === AudioPlayerStatus.Idle) 
+      return interaction.reply({ content: E.E5002, ephemeral: true });
+    player.stop();
+    queues.set(interaction.guildId, []);
+    const conn = getVoiceConnection(interaction.guildId);
+    conn?.disconnect();
+    interaction.reply("⏹️ Müzik durduruldu ve kanaldan çıkıldı.");
     return;
   }
 
   // ── /geç ─────────────────────────────────────────────────────
   if (commandName === "geç") {
-    const queue = getQueue(interaction.guildId);
-    if (!queue.playing || !queue.songs.length) return interaction.reply({ content: E.E5006, ephemeral: true });
-    getPlayer(interaction.guildId).stop();
+    const player = getPlayer(interaction.guildId);
+    const queue = queues.get(interaction.guildId) || [];
+    if (player.state.status === AudioPlayerStatus.Idle || !queue.length)
+      return interaction.reply({ content: E.E5006, ephemeral: true });
+    // stop() → stateChange Idle → playNext() otomatik tetiklenir
+    player.stop();
     interaction.reply("⏭️ Şarkı atlandı!");
     return;
   }
@@ -1139,11 +1216,14 @@ client.on("interactionCreate", async (interaction) => {
 
   // ── /sıra ────────────────────────────────────────────────────
   if (commandName === "sıra") {
-    const queue = getQueue(interaction.guildId);
-    if (!queue.songs.length) return interaction.reply({ content: "📭 Kuyruk boş.", ephemeral: true });
+    const queue = queues.get(interaction.guildId) || [];
+    const player = getPlayer(interaction.guildId);
+    if (!queue.length && player.state.status === AudioPlayerStatus.Idle)
+      return interaction.reply({ content: "📭 Kuyruk boş.", ephemeral: true });
+    const liste = queue.map((s, i) => `${i === 0 ? "▶️" : `${i}.`} **${s.title}** — <@${s.requestedBy}>`).join("\n");
     const embed = new EmbedBuilder()
-      .setTitle("🎶 Müzik Kuyruğu")
-      .setDescription(queue.songs.map((s, i) => `${i === 0 ? "▶️" : `${i}.`} **${s.title}** — <@${s.requestedBy}>`).join("\n"))
+      .setTitle(`🎶 Müzik Kuyruğu (${queue.length} şarkı)`)
+      .setDescription(liste || "Kuyruk boş")
       .setColor(Colors.Blue).setTimestamp();
     interaction.reply({ embeds: [embed] });
     return;
