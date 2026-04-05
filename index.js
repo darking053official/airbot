@@ -175,26 +175,48 @@ const SLASH_KOMUTLAR = [
 ];
 
 // ─── Slash Komutlarını Kaydet ─────────────────────────────────────
-// API.md'e göre: client.rest.registerGlobalCommands([...])
 async function slashKomutlariKaydet() {
   console.log("📝 Slash komutları kaydediliyor...");
+
+  const appId = client.applicationId;
+  if (!appId) {
+    console.error("❌ applicationId bulunamadı!");
+    return;
+  }
+
+  console.log(`🔍 Application ID: ${appId}`);
+
+  // Yöntem 1: client.rest.registerGlobalCommands
   try {
-    // Global kayıt (tüm sunucularda geçerli, ~1 saat yayılım)
     await client.rest.registerGlobalCommands(SLASH_KOMUTLAR);
-    console.log(`✅ ${SLASH_KOMUTLAR.length} slash komutu global olarak kaydedildi.`);
+    console.log(`✅ ${SLASH_KOMUTLAR.length} komut registerGlobalCommands ile kaydedildi.`);
     SLASH_KOMUTLAR.forEach(k => console.log(`  ✅ /${k.name}`));
+    return;
   } catch (e) {
-    console.error("❌ Global kayıt başarısız:", e.message);
-    // Yedek: her sunucuya tek tek kaydet
-    console.log("🔄 Sunucu bazlı kayıt deneniyor...");
-    for (const [guildId] of client.guilds) {
-      try {
-        await client.rest.registerGuildCommands(guildId, SLASH_KOMUTLAR);
-        console.log(`  ✅ Guild ${guildId} komutları kaydedildi.`);
-      } catch (ge) {
-        console.error(`  ❌ Guild ${guildId}: ${ge.message}`);
+    console.error("❌ registerGlobalCommands başarısız:", e.message);
+  }
+
+  // Yöntem 2: Direkt REST isteği (gateway.jubbio.com/api/v1/applications/{appId}/commands)
+  console.log("🔄 Direkt REST ile deneniyor...");
+  try {
+    for (const komut of SLASH_KOMUTLAR) {
+      const res = await fetch(`https://gateway.jubbio.com/api/v1/applications/${appId}/commands`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bot ${TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(komut),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        console.log(`  ✅ /${komut.name} kaydedildi.`);
+      } else {
+        console.error(`  ❌ /${komut.name}: ${JSON.stringify(data)}`);
       }
     }
+  } catch (e) {
+    console.error("❌ Direkt REST başarısız:", e.message);
   }
 }
 
