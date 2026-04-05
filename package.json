@@ -10,6 +10,8 @@
     "@jubbio/core": "latest",
     "@jubbio/voice": "latest",
     "mongodb": "^6.0.0",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "ffmpeg-static": "^5.2.0",
+    "yt-dlp-exec": "^1.0.2"
   }
 }
