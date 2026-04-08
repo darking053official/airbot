@@ -121,6 +121,8 @@ const client = new Client({
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent,
   ],
+  gatewayUrl: "wss://realtime.jubbio.com/ws/bot",
+  apiUrl: "https://gateway.jubbio.com/api/v1",
 });
 
 // ─── Slash Komutları Tanımları ────────────────────────────────────
