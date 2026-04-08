@@ -427,30 +427,30 @@ client.on("messageCreate", async (message) => {
   const args = message.content.slice(1).trim().split(/\s+/);
   const cmd  = args.shift().toLowerCase();
 
-  // ══════════════════════════════════════════
-  //  YARDIM & PING
-  // ══════════════════════════════════════════
+// ══════════════════════════════════════════
+//  YARDIM & PING
+// ══════════════════════════════════════════
 
-  if (cmd === "yardim" || cmd === "yardım") {
-    const embed = new EmbedBuilder()
-      .setTitle("📖 AIRBOT Komutları")
-      .setColor(Colors.Purple)
-      .addFields(
-        { name: "👑 Yönetici (12)",  value: "`!temizle` `!temizle-kullanici` `!uyar` `!uyarilar` `!sustur` `!susturma-kaldir` `!ban` `!kick` `!banlist` `!duyuru` `!kilit` `!yavasmod`" },
-        { name: "🎮 Oyun (6)",       value: "`!zar` `!yazitura` `!sayitahmin` `!bilgiyarisma` `!espri` `!8ball`" },
-        { name: "📝 Genel (14)",     value: "`!ping` `!kullanici` `!sunucu` `!avatar` `!random` `!istatistik` `!afk` `!not` `!notlar` `!notsil` `!hatirlat` `!davet` `!destek` `!havadurumu`" },
-        { name: "💰 Ekonomi (8)",    value: "`!gunluk` `!cal` `!market` `!satinal` `!envanter` `!kumar` `!piyango` `!transfer`" },
-        { name: "📈 Seviye (3)",     value: "`!seviye` `!liderlik` `!xp`" },
-        { name: "🎵 Sesli (9)",      value: "`/sesligel` `/sesliçık` `/çal` `/oynat` `/dur` `/geç` `/geri` `/sıra` `/öneri`" },
-        { name: "🤖 AI (6)",         value: "`!ai` `!sohbet` `!yorumla` `!ozetle` `!cevir` `!soru`" },
-        { name: "⚙️ Ayarlar (2)",    value: "`!logkanal` `!kufurlistesi`" },
-      )
-      .setFooter({ text: "AIRBOT • Jubbio" })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
+if (cmd === "yardim" || cmd === "yardım") {
+  const embed = new EmbedBuilder()
+    .setTitle("📖 AIRBOT Komutları")
+    .setColor(Colors.Purple)
+    .addFields(
+      { name: "👑 Yönetici (12)",  value: "`!temizle` `!temizle-kullanici` `!uyar` `!uyarilar` `!sustur` `!susturma-kaldir` `!ban` `!kick` `!banlist` `!duyuru` `!kilit` `!yavasmod`" },
+      { name: "🎮 Oyun (6)",       value: "`!zar` `!yazitura` `!sayitahmin` `!bilgiyarisma` `!espri` `!8ball`" },
+      { name: "📝 Genel (14)",     value: "`!ping` `!kullanici` `!sunucu` `!avatar` `!random` `!istatistik` `!afk` `!not` `!notlar` `!notsil` `!hatirlat` `!davet` `!destek` `!havadurumu`" },
+      { name: "💰 Ekonomi (8)",    value: "`!gunluk` `!cal` `!market` `!satinal` `!envanter` `!kumar` `!piyango` `!transfer`" },
+      { name: "📈 Seviye (3)",     value: "`!seviye` `!liderlik` `!xp`" },
+      { name: "🎵 Sesli (9)",      value: "`/sesligel` `/sesliçık` `/çal` `/oynat` `/dur` `/geç` `/geri` `/sıra` `/öneri`" },
+      { name: "🤖 AI (6)",         value: "`!ai` `!sohbet` `!yorumla` `!ozetle` `!cevir` `!soru`" },
+      { name: "⚙️ Ayarlar (2)",    value: "`!logkanal` `!kufurlistesi`" },
+    )
+    .setFooter({ text: "AIRBOT • Jubbio" })
+    .setTimestamp();
+  return message.reply({ embeds: [embed] });
+}
 
-  if (cmd === "ping" || cmd === "ms") {
+if (cmd === "ping" || cmd === "ms") {
   const start = Date.now();
   const msg = await message.reply("🏓 Hesaplanıyor...");
   const messagePing = Date.now() - start;
@@ -475,12 +475,11 @@ client.on("messageCreate", async (message) => {
     .setTimestamp();
   
   return msg.edit({ content: null, embeds: [embed] });
-      }
-  }
+}
 
-  // ══════════════════════════════════════════
-  //  YÖNETİCİ KOMUTLARI
-  // ══════════════════════════════════════════
+// ══════════════════════════════════════════
+//  YÖNETİCİ KOMUTLARI
+// ══════════════════════════════════════════
 
   if (cmd === "temizle") {
     if (!message.member?.permissions?.has("ManageMessages")) return hata(message, "E2004");
