@@ -11,9 +11,26 @@ const {
 const { MongoClient } = require("mongodb");
 const fetch = require("node-fetch");
 const http = require("http");
-// yt-dlp path - pip install yt-dlp ~/.local/bin/yt-dlp'ye kurar
-const YTDLP = process.env.HOME + "/.local/bin/yt-dlp";
-console.log(`🎵 yt-dlp path: ${YTDLP}`);
+// yt-dlp path bul
+const { execSync } = require("child_process");
+let YTDLP = "";
+try {
+  YTDLP = execSync("which yt-dlp").toString().trim();
+  console.log(`🎵 yt-dlp bulundu: ${YTDLP}`);
+} catch (e) {
+  // which çalışmadıysa olası path'leri dene
+  const fs = require("fs");
+  const paths = [
+    process.env.HOME + "/.local/bin/yt-dlp",
+    "/usr/local/bin/yt-dlp",
+    "/usr/bin/yt-dlp",
+    "/opt/render/.local/bin/yt-dlp",
+  ];
+  for (const p of paths) {
+    if (fs.existsSync(p)) { YTDLP = p; break; }
+  }
+  console.log(YTDLP ? `🎵 yt-dlp bulundu: ${YTDLP}` : "❌ yt-dlp bulunamadı!");
+}
 
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
