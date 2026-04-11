@@ -11,6 +11,12 @@ const {
 const { MongoClient } = require("mongodb");
 const fetch = require("node-fetch");
 const http = require("http");
+const { path: ytDlpPath } = require("yt-dlp-exec");
+
+// yt-dlp binary path'ini ortam değişkenine set et
+// @jubbio/voice bunu otomatik kullanır
+process.env.YTDLP_PATH = ytDlpPath;
+console.log(`🎵 yt-dlp path: ${ytDlpPath}`);
 
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
@@ -427,59 +433,38 @@ client.on("messageCreate", async (message) => {
   const args = message.content.slice(1).trim().split(/\s+/);
   const cmd  = args.shift().toLowerCase();
 
-// ══════════════════════════════════════════
-//  YARDIM & PING
-// ══════════════════════════════════════════
+  // ══════════════════════════════════════════
+  //  YARDIM & PING
+  // ══════════════════════════════════════════
 
-if (cmd === "yardim" || cmd === "yardım") {
-  const embed = new EmbedBuilder()
-    .setTitle("📖 AIRBOT Komutları")
-    .setColor(Colors.Purple)
-    .addFields(
-      { name: "👑 Yönetici (12)",  value: "`!temizle` `!temizle-kullanici` `!uyar` `!uyarilar` `!sustur` `!susturma-kaldir` `!ban` `!kick` `!banlist` `!duyuru` `!kilit` `!yavasmod`" },
-      { name: "🎮 Oyun (6)",       value: "`!zar` `!yazitura` `!sayitahmin` `!bilgiyarisma` `!espri` `!8ball`" },
-      { name: "📝 Genel (14)",     value: "`!ping` `!kullanici` `!sunucu` `!avatar` `!random` `!istatistik` `!afk` `!not` `!notlar` `!notsil` `!hatirlat` `!davet` `!destek` `!havadurumu`" },
-      { name: "💰 Ekonomi (8)",    value: "`!gunluk` `!cal` `!market` `!satinal` `!envanter` `!kumar` `!piyango` `!transfer`" },
-      { name: "📈 Seviye (3)",     value: "`!seviye` `!liderlik` `!xp`" },
-      { name: "🎵 Sesli (9)",      value: "`/sesligel` `/sesliçık` `/çal` `/oynat` `/dur` `/geç` `/geri` `/sıra` `/öneri`" },
-      { name: "🤖 AI (6)",         value: "`!ai` `!sohbet` `!yorumla` `!ozetle` `!cevir` `!soru`" },
-      { name: "⚙️ Ayarlar (2)",    value: "`!logkanal` `!kufurlistesi`" },
-    )
-    .setFooter({ text: "AIRBOT • Jubbio" })
-    .setTimestamp();
-  return message.reply({ embeds: [embed] });
-}
+  if (cmd === "yardim" || cmd === "yardım") {
+    const embed = new EmbedBuilder()
+      .setTitle("📖 AIRBOT Komutları")
+      .setColor(Colors.Purple)
+      .addFields(
+        { name: "👑 Yönetici (12)",  value: "`!temizle` `!temizle-kullanici` `!uyar` `!uyarilar` `!sustur` `!susturma-kaldir` `!ban` `!kick` `!banlist` `!duyuru` `!kilit` `!yavasmod`" },
+        { name: "🎮 Oyun (6)",       value: "`!zar` `!yazitura` `!sayitahmin` `!bilgiyarisma` `!espri` `!8ball`" },
+        { name: "📝 Genel (14)",     value: "`!ping` `!kullanici` `!sunucu` `!avatar` `!random` `!istatistik` `!afk` `!not` `!notlar` `!notsil` `!hatirlat` `!davet` `!destek` `!havadurumu`" },
+        { name: "💰 Ekonomi (8)",    value: "`!gunluk` `!cal` `!market` `!satinal` `!envanter` `!kumar` `!piyango` `!transfer`" },
+        { name: "📈 Seviye (3)",     value: "`!seviye` `!liderlik` `!xp`" },
+        { name: "🎵 Sesli (9)",      value: "`/sesligel` `/sesliçık` `/çal` `/oynat` `/dur` `/geç` `/geri` `/sıra` `/öneri`" },
+        { name: "🤖 AI (6)",         value: "`!ai` `!sohbet` `!yorumla` `!ozetle` `!cevir` `!soru`" },
+        { name: "⚙️ Ayarlar (2)",    value: "`!logkanal` `!kufurlistesi`" },
+      )
+      .setFooter({ text: "AIRBOT • Jubbio" })
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
 
-if (cmd === "ping" || cmd === "ms") {
-  const start = Date.now();
-  const msg = await message.reply("🏓 Hesaplanıyor...");
-  const messagePing = Date.now() - start;
-  
-  // Botun uptime'ı
-  const uptime = client.uptime;
-  const uptimeStr = uptime ? 
-    `${Math.floor(uptime / 86400000)}g ${Math.floor((uptime % 86400000) / 3600000)}s ${Math.floor((uptime % 3600000) / 60000)}d` 
-    : "N/A";
-  
-  const embed = new EmbedBuilder()
-    .setAuthor({ name: client.user?.username, iconURL: client.user?.avatarURL() })
-    .setTitle("🏓 PONG!")
-    .setDescription(`**Mesaj Gecikmesi:** \`${messagePing}ms\``)
-    .addFields(
-      { name: "🤖 Bot Gecikmesi", value: `\`${Math.round(messagePing - 10)}ms\``, inline: true },
-      { name: "⏱️ Çalışma Süresi", value: uptimeStr, inline: true },
-      { name: "📊 Sunucular", value: `\`${client.guilds.size}\``, inline: true }
-    )
-    .setColor(messagePing < 100 ? Colors.Green : Colors.Yellow)
-    .setFooter({ text: "AIRBOT • Jubbio" })
-    .setTimestamp();
-  
-  return msg.edit({ content: null, embeds: [embed] });
-}
+  if (cmd === "ping") {
+    const start = Date.now();
+    const msg = await message.reply("🏓 Ölçülüyor...");
+    return msg.edit(`🏓 Pong! \`${Date.now() - start}ms\``);
+  }
 
-// ══════════════════════════════════════════
-//  YÖNETİCİ KOMUTLARI
-// ══════════════════════════════════════════
+  // ══════════════════════════════════════════
+  //  YÖNETİCİ KOMUTLARI
+  // ══════════════════════════════════════════
 
   if (cmd === "temizle") {
     if (!message.member?.permissions?.has("ManageMessages")) return hata(message, "E2004");
