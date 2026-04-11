@@ -309,9 +309,9 @@ async function playNext(guildId) {
     const resource = createAudioResourceFromUrl(song.url, {
       metadata: song,
       useYtDlp: true,
-      ytDlpPath: fs.existsSync(COOKIES_PATH) 
-        ? `${YTDLP} --cookies ${COOKIES_PATH}`
-        : YTDLP,
+      ytDlpPath: fs.existsSync(COOKIES_PATH)
+        ? `${YTDLP} --cookies ${COOKIES_PATH} -f bestaudio/best`
+        : `${YTDLP} -f bestaudio/best`,
     });
     const player = getPlayer(guildId);
     player.play(resource);
@@ -1234,8 +1234,8 @@ client.on("interactionCreate", async (interaction) => {
 
       // Şarkı bilgisini al - cookies ile
       const ytdlpArgs = fs.existsSync(COOKIES_PATH) 
-        ? `${YTDLP} --cookies ${COOKIES_PATH}`
-        : YTDLP;
+        ? `${YTDLP} --cookies ${COOKIES_PATH} -f bestaudio/best`
+        : `${YTDLP} -f bestaudio/best`;
       const info = await probeAudioInfo(sorgu, ytdlpArgs);
       const song = {
         url: sorgu,
