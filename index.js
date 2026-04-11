@@ -14,6 +14,7 @@ const http = require("http");
 // yt-dlp path bul
 const { execSync } = require("child_process");
 const fs = require("fs");
+const path = require("path");
 let YTDLP = "";
 try {
   YTDLP = execSync("which yt-dlp").toString().trim();
@@ -31,17 +32,23 @@ try {
   console.log(YTDLP ? `🎵 yt-dlp bulundu: ${YTDLP}` : "❌ yt-dlp bulunamadı!");
 }
 
-// YouTube cookies'i geçici dosyaya yaz
-const COOKIES_PATH = "/tmp/yt-cookies.txt";
-if (process.env.YOUTUBE_COOKIES) {
+// Cookies dosyası repo içinde cookies.txt olarak bulunuyor
+const COOKIES_PATH = path.join(__dirname, "cookies.txt");
+if (fs.existsSync(COOKIES_PATH)) {
+  console.log("🍪 cookies.txt bulundu.");
+  // yt-dlp config'e yaz ki probeAudioInfo otomatik kullansın
+  const YTDLP_CONFIG_DIR = process.env.HOME + "/.config/yt-dlp";
+  const YTDLP_CONFIG = YTDLP_CONFIG_DIR + "/config";
   try {
-    fs.writeFileSync(COOKIES_PATH, process.env.YOUTUBE_COOKIES);
-    console.log("🍪 YouTube cookies yüklendi.");
+    if (!fs.existsSync(YTDLP_CONFIG_DIR)) fs.mkdirSync(YTDLP_CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(YTDLP_CONFIG, `--cookies ${COOKIES_PATH}
+`);
+    console.log("🍪 yt-dlp config yazıldı.");
   } catch (e) {
-    console.error("❌ Cookies yazılamadı:", e.message);
+    console.error("❌ yt-dlp config yazılamadı:", e.message);
   }
 } else {
-  console.warn("⚠️ YOUTUBE_COOKIES env değişkeni bulunamadı.");
+  console.warn("⚠️ cookies.txt bulunamadı!");
 }
 
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
