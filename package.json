@@ -4,13 +4,13 @@
   "description": "AIRBOT - Jubbio Bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "postinstall": "curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /opt/render/.local/bin/yt-dlp && chmod +x /opt/render/.local/bin/yt-dlp"
   },
   "dependencies": {
     "@jubbio/core": "latest",
     "@jubbio/voice": "latest",
     "mongodb": "^6.0.0",
-    "node-fetch": "^2.7.0",
-    "yt-dlp-exec": "^1.0.2"
+    "node-fetch": "^2.7.0"
   }
 }
