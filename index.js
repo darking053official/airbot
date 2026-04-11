@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════╗
-// ║                   AIRBOT - Jubbio Bot v2.0                     ║
+// ║                    AIRBOT - Jubbio Bot v2.0                     ║
 // ║  Yönetici | Oyun | Genel | Ekonomi | Seviye | Müzik | AI       ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
@@ -11,9 +11,15 @@ const {
 const { MongoClient } = require("mongodb");
 const fetch = require("node-fetch");
 const http = require("http");
-// yt-dlp binary path'ini PATH'e ekle ki @jubbio/voice bulabilsin
-process.env.PATH = `/opt/render/.local/bin:${process.env.PATH}`;
-console.log(`🎵 yt-dlp PATH güncellendi.`);
+// yt-dlp path'lerini tümünü dene
+const possiblePaths = [
+  "/opt/render/.local/bin",
+  "/usr/local/bin",
+  "/usr/bin",
+  `${process.env.HOME}/.local/bin`,
+];
+process.env.PATH = possiblePaths.join(":") + ":" + process.env.PATH;
+console.log(`🎵 PATH güncellendi: ${process.env.PATH.split(":").slice(0,5).join(":")}`);
 
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
