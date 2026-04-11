@@ -34,27 +34,27 @@ try {
 
 // Cookies dosyası repo içinde cookies.txt olarak bulunuyor
 const COOKIES_PATH = path.join(__dirname, "cookies.txt");
-const WRAPPER_PATH = "/tmp/yt-dlp-wrapper.sh";
 
-if (fs.existsSync(COOKIES_PATH)) {
-  console.log("🍪 cookies.txt bulundu.");
-  try {
-    // yt-dlp wrapper script yaz - cookies ve format argümanlarını otomatik ekler
-    const wrapperContent = `#!/bin/bash
-exec ${YTDLP} --cookies ${COOKIES_PATH} -f "bestaudio[ext=webm]/bestaudio[ext=mp4]/bestaudio/best" "$@"
+// yt-dlp config dosyasına cookies yaz - her çağrıda otomatik kullanılır
+try {
+  const configDir = path.join(process.env.HOME, ".config", "yt-dlp");
+  const configPath = path.join(configDir, "config");
+  if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
+  let configContent = "";
+  if (fs.existsSync(COOKIES_PATH)) {
+    configContent += `--cookies "${COOKIES_PATH}"
 `;
-    fs.writeFileSync(WRAPPER_PATH, wrapperContent);
-    execSync(`chmod +x ${WRAPPER_PATH}`);
-    console.log("🍪 yt-dlp wrapper oluşturuldu.");
-  } catch (e) {
-    console.error("❌ Wrapper oluşturulamadı:", e.message);
+    console.log("🍪 cookies.txt bulundu ve config'e eklendi.");
+  } else {
+    console.warn("⚠️ cookies.txt bulunamadı!");
   }
-} else {
-  console.warn("⚠️ cookies.txt bulunamadı!");
+  fs.writeFileSync(configPath, configContent);
+  console.log(`🎵 yt-dlp config yazıldı: ${configPath}`);
+} catch (e) {
+  console.error("❌ yt-dlp config yazılamadı:", e.message);
 }
 
-// Wrapper varsa onu kullan, yoksa direkt yt-dlp
-const YTDLP_FINAL = fs.existsSync(WRAPPER_PATH) ? WRAPPER_PATH : YTDLP;
+const YTDLP_FINAL = YTDLP;
 
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
