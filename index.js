@@ -11,15 +11,9 @@ const {
 const { MongoClient } = require("mongodb");
 const fetch = require("node-fetch");
 const http = require("http");
-// yt-dlp path'lerini tümünü dene
-const possiblePaths = [
-  "/opt/render/.local/bin",
-  "/usr/local/bin",
-  "/usr/bin",
-  `${process.env.HOME}/.local/bin`,
-];
-process.env.PATH = possiblePaths.join(":") + ":" + process.env.PATH;
-console.log(`🎵 PATH güncellendi: ${process.env.PATH.split(":").slice(0,5).join(":")}`);
+// yt-dlp path - pip install yt-dlp ~/.local/bin/yt-dlp'ye kurar
+const YTDLP = process.env.HOME + "/.local/bin/yt-dlp";
+console.log(`🎵 yt-dlp path: ${YTDLP}`);
 
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
@@ -242,14 +236,12 @@ function getPlayer(guildId) {
   const player = createAudioPlayer();
   players.set(guildId, player);
 
-  // Resmi örnekteki gibi stateChange ile Idle dinle
-  player.on("stateChange", (oldState, newState) => {
-    if (newState.status === AudioPlayerStatus.Idle && oldState.status !== AudioPlayerStatus.Idle) {
-      const queue = queues.get(guildId) || [];
-      queue.shift();
-      queues.set(guildId, queue);
-      playNext(guildId);
-    }
+  // Dokümana göre idle eventi kullan
+  player.on("idle", () => {
+    const queue = queues.get(guildId) || [];
+    queue.shift();
+    queues.set(guildId, queue);
+    playNext(guildId);
   });
 
   player.on("error", (err) => {
@@ -278,7 +270,11 @@ async function playNext(guildId) {
   console.log(`[Müzik] Çalıyor: ${song.title}`);
 
   try {
-    const resource = createAudioResourceFromUrl(song.url, { metadata: song });
+    const resource = createAudioResourceFromUrl(song.url, {
+      metadata: song,
+      useYtDlp: true,
+      ytDlpPath: YTDLP,
+    });
     const player = getPlayer(guildId);
     player.play(resource);
 
@@ -1199,7 +1195,7 @@ client.on("interactionCreate", async (interaction) => {
       channels.set(interaction.guildId, interaction.channel);
 
       // Şarkı bilgisini al
-      const info = await probeAudioInfo(sorgu);
+      const info = await probeAudioInfo(sorgu, YTDLP);
       const song = {
         url: sorgu,
         title: info.title || sorgu,
