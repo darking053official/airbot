@@ -309,8 +309,9 @@ async function playNext(guildId) {
     const resource = createAudioResourceFromUrl(song.url, {
       metadata: song,
       useYtDlp: true,
-      ytDlpPath: YTDLP,
-      ytDlpArgs: fs.existsSync(COOKIES_PATH) ? ["--cookies", COOKIES_PATH] : [],
+      ytDlpPath: fs.existsSync(COOKIES_PATH) 
+        ? `${YTDLP} --cookies ${COOKIES_PATH}`
+        : YTDLP,
     });
     const player = getPlayer(guildId);
     player.play(resource);
@@ -1231,10 +1232,11 @@ client.on("interactionCreate", async (interaction) => {
       // Metin kanalını kaydet (şarkı embed'leri için)
       channels.set(interaction.guildId, interaction.channel);
 
-      // Şarkı bilgisini al
-      const info = await probeAudioInfo(sorgu, YTDLP, {
-        cookies: fs.existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined,
-      });
+      // Şarkı bilgisini al - cookies ile
+      const ytdlpArgs = fs.existsSync(COOKIES_PATH) 
+        ? `${YTDLP} --cookies ${COOKIES_PATH}`
+        : YTDLP;
+      const info = await probeAudioInfo(sorgu, ytdlpArgs);
       const song = {
         url: sorgu,
         title: info.title || sorgu,
