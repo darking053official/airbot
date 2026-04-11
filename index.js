@@ -13,13 +13,12 @@ const fetch = require("node-fetch");
 const http = require("http");
 // yt-dlp path bul
 const { execSync } = require("child_process");
+const fs = require("fs");
 let YTDLP = "";
 try {
   YTDLP = execSync("which yt-dlp").toString().trim();
   console.log(`🎵 yt-dlp bulundu: ${YTDLP}`);
 } catch (e) {
-  // which çalışmadıysa olası path'leri dene
-  const fs = require("fs");
   const paths = [
     process.env.HOME + "/.local/bin/yt-dlp",
     "/usr/local/bin/yt-dlp",
@@ -30,6 +29,19 @@ try {
     if (fs.existsSync(p)) { YTDLP = p; break; }
   }
   console.log(YTDLP ? `🎵 yt-dlp bulundu: ${YTDLP}` : "❌ yt-dlp bulunamadı!");
+}
+
+// YouTube cookies'i geçici dosyaya yaz
+const COOKIES_PATH = "/tmp/yt-cookies.txt";
+if (process.env.YOUTUBE_COOKIES) {
+  try {
+    fs.writeFileSync(COOKIES_PATH, process.env.YOUTUBE_COOKIES);
+    console.log("🍪 YouTube cookies yüklendi.");
+  } catch (e) {
+    console.error("❌ Cookies yazılamadı:", e.message);
+  }
+} else {
+  console.warn("⚠️ YOUTUBE_COOKIES env değişkeni bulunamadı.");
 }
 
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
@@ -291,6 +303,7 @@ async function playNext(guildId) {
       metadata: song,
       useYtDlp: true,
       ytDlpPath: YTDLP,
+      ytDlpArgs: fs.existsSync(COOKIES_PATH) ? ["--cookies", COOKIES_PATH] : [],
     });
     const player = getPlayer(guildId);
     player.play(resource);
@@ -1212,7 +1225,9 @@ client.on("interactionCreate", async (interaction) => {
       channels.set(interaction.guildId, interaction.channel);
 
       // Şarkı bilgisini al
-      const info = await probeAudioInfo(sorgu, YTDLP);
+      const info = await probeAudioInfo(sorgu, YTDLP, {
+        cookies: fs.existsSync(COOKIES_PATH) ? COOKIES_PATH : undefined,
+      });
       const song = {
         url: sorgu,
         title: info.title || sorgu,
