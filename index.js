@@ -34,22 +34,27 @@ try {
 
 // Cookies dosyası repo içinde cookies.txt olarak bulunuyor
 const COOKIES_PATH = path.join(__dirname, "cookies.txt");
+const WRAPPER_PATH = "/tmp/yt-dlp-wrapper.sh";
+
 if (fs.existsSync(COOKIES_PATH)) {
   console.log("🍪 cookies.txt bulundu.");
-  // yt-dlp config'e yaz ki probeAudioInfo otomatik kullansın
-  const YTDLP_CONFIG_DIR = process.env.HOME + "/.config/yt-dlp";
-  const YTDLP_CONFIG = YTDLP_CONFIG_DIR + "/config";
   try {
-    if (!fs.existsSync(YTDLP_CONFIG_DIR)) fs.mkdirSync(YTDLP_CONFIG_DIR, { recursive: true });
-    fs.writeFileSync(YTDLP_CONFIG, `--cookies ${COOKIES_PATH}
-`);
-    console.log("🍪 yt-dlp config yazıldı.");
+    // yt-dlp wrapper script yaz - cookies ve format argümanlarını otomatik ekler
+    const wrapperContent = `#!/bin/bash
+exec ${YTDLP} --cookies ${COOKIES_PATH} -f "bestaudio[ext=webm]/bestaudio[ext=mp4]/bestaudio/best" "$@"
+`;
+    fs.writeFileSync(WRAPPER_PATH, wrapperContent);
+    execSync(`chmod +x ${WRAPPER_PATH}`);
+    console.log("🍪 yt-dlp wrapper oluşturuldu.");
   } catch (e) {
-    console.error("❌ yt-dlp config yazılamadı:", e.message);
+    console.error("❌ Wrapper oluşturulamadı:", e.message);
   }
 } else {
   console.warn("⚠️ cookies.txt bulunamadı!");
 }
+
+// Wrapper varsa onu kullan, yoksa direkt yt-dlp
+const YTDLP_FINAL = fs.existsSync(WRAPPER_PATH) ? WRAPPER_PATH : YTDLP;
 
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
@@ -309,9 +314,7 @@ async function playNext(guildId) {
     const resource = createAudioResourceFromUrl(song.url, {
       metadata: song,
       useYtDlp: true,
-      ytDlpPath: fs.existsSync(COOKIES_PATH)
-        ? `${YTDLP} --cookies ${COOKIES_PATH} -f "bestaudio[ext=webm]/bestaudio[ext=mp4]/bestaudio/best"`
-        : `${YTDLP} -f "bestaudio[ext=webm]/bestaudio[ext=mp4]/bestaudio/best"`,
+      ytDlpPath: YTDLP_FINAL,
     });
     const player = getPlayer(guildId);
     player.play(resource);
@@ -1232,11 +1235,8 @@ client.on("interactionCreate", async (interaction) => {
       // Metin kanalını kaydet (şarkı embed'leri için)
       channels.set(interaction.guildId, interaction.channel);
 
-      // Şarkı bilgisini al - cookies ile
-      const ytdlpArgs = fs.existsSync(COOKIES_PATH) 
-        ? `${YTDLP} --cookies ${COOKIES_PATH} -f "bestaudio[ext=webm]/bestaudio[ext=mp4]/bestaudio/best"`
-        : `${YTDLP} -f "bestaudio[ext=webm]/bestaudio[ext=mp4]/bestaudio/best"`;
-      const info = await probeAudioInfo(sorgu, ytdlpArgs);
+      // Şarkı bilgisini al
+      const info = await probeAudioInfo(sorgu, YTDLP_FINAL);
       const song = {
         url: sorgu,
         title: info.title || sorgu,
