@@ -11,9 +11,9 @@ const {
 const { MongoClient } = require("mongodb");
 const fetch = require("node-fetch");
 const http = require("http");
-// yt-dlp binary Render.com'da /opt/render/.local/bin/yt-dlp konumunda
-process.env.YTDLP_PATH = "/opt/render/.local/bin/yt-dlp";
-console.log(`🎵 yt-dlp path: ${process.env.YTDLP_PATH}`);
+// yt-dlp binary path'ini PATH'e ekle ki @jubbio/voice bulabilsin
+process.env.PATH = `/opt/render/.local/bin:${process.env.PATH}`;
+console.log(`🎵 yt-dlp PATH güncellendi.`);
 
 // ─── Ortam Değişkenleri ───────────────────────────────────────────
 const TOKEN       = process.env.BOT_TOKEN;
