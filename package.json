@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "postinstall": "curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /opt/render/.local/bin/yt-dlp && chmod +x /opt/render/.local/bin/yt-dlp"
+    "postinstall": "mkdir -p /opt/render/.local/bin && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /opt/render/.local/bin/yt-dlp && chmod +x /opt/render/.local/bin/yt-dlp && echo 'yt-dlp kuruldu!'"
   },
   "dependencies": {
     "@jubbio/core": "latest",
