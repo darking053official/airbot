@@ -1215,20 +1215,44 @@ client.on("interactionCreate", async (interaction) => {
     const vcId = interaction.member?.voice?.channelId;
     if (!vcId) return interaction.reply({ content: E.E5001, ephemeral: true });
     try {
-      let conn = getVoiceConnection(interaction.guildId);
-      if (!conn || conn.state.status === VoiceConnectionStatus.Disconnected) {
-        conn = joinVoiceChannel({
-          channelId: vcId,
-          guildId: interaction.guildId,
-          adapterCreator: client.voice.adapters.get(interaction.guildId),
-          selfMute: false,
-          selfDeaf: false,
-        });
-        conn.subscribe(getPlayer(interaction.guildId));
-      }
+      // Mevcut bağlantıyı yok et, yeniden bağlan
+      const eskiConn = getVoiceConnection(interaction.guildId);
+      if (eskiConn) eskiConn.destroy();
+      
+      const conn = joinVoiceChannel({
+        channelId: vcId,
+        guildId: interaction.guildId,
+        adapterCreator: client.voice.adapters.get(interaction.guildId),
+        selfMute: false,
+        selfDeaf: false,
+      });
+      conn.subscribe(getPlayer(interaction.guildId));
       channels.set(interaction.guildId, interaction.channel);
+
+      // Bağlantı Ready olana kadar bekle
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("Bağlantı zaman aşımı")), 10000);
+        conn.on("stateChange", (_, newState) => {
+          if (newState.status === VoiceConnectionStatus.Ready) {
+            clearTimeout(timeout);
+            resolve();
+          } else if (newState.status === VoiceConnectionStatus.Destroyed) {
+            clearTimeout(timeout);
+            reject(new Error("Bağlantı yok edildi"));
+          }
+        });
+        // Zaten Ready ise
+        if (conn.state.status === VoiceConnectionStatus.Ready) {
+          clearTimeout(timeout);
+          resolve();
+        }
+      });
+
       interaction.reply("✅ Ses kanalına girildi!");
-    } catch (e) { console.error("[E5005]", e.message); interaction.reply({ content: E.E5005, ephemeral: true }); }
+    } catch (e) { 
+      console.error("[E5005]", e.message); 
+      interaction.reply({ content: `${E.E5005} (${e.message})`, ephemeral: true }); 
+    }
     return;
   }
 
