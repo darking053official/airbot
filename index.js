@@ -48,10 +48,7 @@ try {
   } else {
     console.warn("⚠️ cookies.txt bulunamadı!");
   }
-  // Format seçimi - en geniş uyumluluk
   configContent += `--no-playlist
-`;
-  configContent += `--format (bestaudio[acodec=opus]/bestaudio[acodec=mp4a]/bestaudio)/best
 `;
   fs.writeFileSync(configPath, configContent);
   console.log(`🎵 yt-dlp config yazıldı: ${configPath}`);
