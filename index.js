@@ -1240,8 +1240,28 @@ client.on("interactionCreate", async (interaction) => {
       // Metin kanalını kaydet (şarkı embed'leri için)
       channels.set(interaction.guildId, interaction.channel);
 
-      // Şarkı bilgisini al
-      const info = await probeAudioInfo(sorgu, YTDLP_FINAL);
+      // Şarkı bilgisini al - direkt yt-dlp ile
+      const cookiesArg = fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"` : "";
+      const infoCmd = `${YTDLP_FINAL} ${cookiesArg} --no-playlist -j "ytsearch1:${sorgu.replace(/"/g, '')}"`;
+      let info = { title: sorgu, url: sorgu, duration: 0, thumbnail: undefined };
+      try {
+        // URL mi yoksa arama sorgusu mu?
+        const isUrl = sorgu.startsWith("http");
+        const cmd = isUrl 
+          ? `${YTDLP_FINAL} ${cookiesArg} --no-playlist -j "${sorgu}"`
+          : `${YTDLP_FINAL} ${cookiesArg} --no-playlist -j "ytsearch1:${sorgu.replace(/"/g, '')}"`;
+        const raw = execSync(cmd, { timeout: 30000 }).toString().trim();
+        const data = JSON.parse(raw);
+        info = {
+          title: data.title || sorgu,
+          url: data.webpage_url || sorgu,
+          duration: data.duration || 0,
+          thumbnail: data.thumbnail,
+        };
+        console.log(`[Müzik] Şarkı bulundu: ${info.title}`);
+      } catch (e) {
+        console.error(`[Müzik] Şarkı bilgisi alınamadı: ${e.message}`);
+      }
       const song = {
         url: sorgu,
         title: info.title || sorgu,
