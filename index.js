@@ -313,38 +313,16 @@ async function playNext(guildId) {
   console.log(`[Müzik] Çalıyor: ${song.title}`);
 
   try {
-    const { spawn } = require("child_process");
-    const ffmpegPath = require("ffmpeg-static");
+    // yt-dlp ile direkt ses URL'si al (iOS client kullan - n challenge yok)
+    const cookiesArgs = fs.existsSync(COOKIES_PATH) ? ["--cookies", COOKIES_PATH] : [];
+    const audioUrl = execSync(`${YTDLP_FINAL} ${cookiesArgs.join(" ")} --no-playlist --extractor-args "youtube:player_client=ios" -f "bestaudio" -g "${song.url}"`, { timeout: 30000 }).toString().trim().split("
+")[0];
+    console.log(`[Müzik] Ses URL alındı`);
 
-    // yt-dlp stdout → ffmpeg → opus stream
-    const ytdlp = spawn(YTDLP_FINAL, [
-      ...(fs.existsSync(COOKIES_PATH) ? ["--cookies", COOKIES_PATH] : []),
-      "--no-playlist",
-      "-o", "-",
-      "-q",
-      song.url
-    ]);
-
-    const ffmpeg = spawn(ffmpegPath, [
-      "-i", "pipe:0",
-      "-f", "opus",
-      "-ar", "48000",
-      "-ac", "2",
-      "pipe:1"
-    ]);
-
-    ytdlp.stdout.pipe(ffmpeg.stdin);
-
-    ytdlp.stderr.on("data", d => console.error("[yt-dlp]", d.toString()));
-    ffmpeg.stderr.on("data", d => console.error("[ffmpeg]", d.toString()));
-
-    const resource = createAudioResource(ffmpeg.stdout, {
-      metadata: song,
-      inputType: StreamType.Opus,
-    });
+    const resource = createAudioResource(audioUrl, { metadata: song });
     const player = getPlayer(guildId);
     player.play(resource);
-    console.log(`[Müzik] Stream başlatıldı: ${song.title}`);
+    console.log(`[Müzik] Çalıyor: ${song.title}`);
 
     if (ch) {
       const embed = new EmbedBuilder()
