@@ -279,12 +279,13 @@ function getPlayer(guildId) {
   const player = createAudioPlayer();
   players.set(guildId, player);
 
-  // Dokümana göre idle eventi kullan
+  // idle: mevcut şarkı bitti, sıradakini çal
   player.on("idle", () => {
     const queue = queues.get(guildId) || [];
-    queue.shift();
+    if (queue.length > 0) queue.shift();
     queues.set(guildId, queue);
-    playNext(guildId);
+    if (queue.length > 0) playNext(guildId);
+    else console.log(`[Müzik] Kuyruk bitti.`);
   });
 
   player.on("error", (err) => {
@@ -312,7 +313,7 @@ async function playNext(guildId) {
     return;
   }
 
-  const song = queue[0];
+  const song = queue[0]; // shift yapma, idle yapacak
   console.log(`[playNext] Şarkı: ${song.title} | URL: ${song.url}`);
 
   try {
@@ -348,10 +349,11 @@ async function playNext(guildId) {
     }
   } catch (err) {
     console.error(`[playNext] HATA: ${err.message}`);
-    console.error(`[playNext] Stack: ${err.stack}`);
     if (ch) ch.send(`❌ Hata: ${err.message}`);
+    // Hatalı şarkıyı kuyruğdan çıkar ve devam et
     queue.shift();
     queues.set(guildId, queue);
+    if (queue.length > 0) playNext(guildId);
   }
 }
 
