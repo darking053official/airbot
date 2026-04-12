@@ -316,15 +316,13 @@ async function playNext(guildId) {
   console.log(`[playNext] Şarkı: ${song.title} | URL: ${song.url}`);
 
   try {
-    const cookiesStr = fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"` : "";
+    // SoundCloud için cookies gerekmez
     const cmd = [
       YTDLP_FINAL,
-      cookiesStr,
       "--no-playlist",
-      "--extractor-args", "youtube:player_client=ios",
       "-g",
       `"${song.url}"`
-    ].filter(Boolean).join(" ");
+    ].join(" ");
     console.log(`[playNext] Komut: ${cmd}`);
     
     const audioUrl = execSync(cmd, { timeout: 30000 }).toString().trim().split("\n")[0];
@@ -1264,20 +1262,20 @@ client.on("interactionCreate", async (interaction) => {
       const infoCmd = `${YTDLP_FINAL} ${cookiesArg} --no-playlist -j "ytsearch1:${sorgu.replace(/"/g, '')}"`;
       let info = { title: sorgu, url: sorgu, duration: 0, thumbnail: undefined };
       try {
-        // URL mi yoksa arama sorgusu mu?
+        // SoundCloud araması yap
         const isUrl = sorgu.startsWith("http");
-        const cmd = isUrl 
-          ? `${YTDLP_FINAL} ${cookiesArg} --no-playlist -j "${sorgu}"`
-          : `${YTDLP_FINAL} ${cookiesArg} --no-playlist -j "ytsearch1:${sorgu.replace(/"/g, '')}"`;
+        const searchQuery = isUrl ? sorgu : `scsearch1:${sorgu.replace(/"/g, "")}`;
+        const cmd = `${YTDLP_FINAL} --no-playlist -j "${searchQuery}"`;
+        console.log(`[Müzik] Arama: ${cmd}`);
         const raw = execSync(cmd, { timeout: 30000 }).toString().trim();
         const data = JSON.parse(raw);
         info = {
           title: data.title || sorgu,
-          url: data.webpage_url || sorgu,
+          url: data.webpage_url || data.url || sorgu,
           duration: data.duration || 0,
           thumbnail: data.thumbnail,
         };
-        console.log(`[Müzik] Şarkı bulundu: ${info.title}`);
+        console.log(`[Müzik] Şarkı bulundu: ${info.title} | ${info.url}`);
       } catch (e) {
         console.error(`[Müzik] Şarkı bilgisi alınamadı: ${e.message}`);
       }
