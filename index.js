@@ -310,28 +310,26 @@ async function playNext(guildId) {
   }
 
   const song = queue[0];
-  console.log(`[Müzik] Çalıyor: ${song.title}`);
+  console.log(`[Müzik] playNext başladı: ${song.title} | url: ${song.url}`);
 
   try {
-    // yt-dlp ile direkt ses URL'si al (iOS client kullan - n challenge yok)
-    const cookiesArgs = fs.existsSync(COOKIES_PATH) ? ["--cookies", COOKIES_PATH] : [];
     const cookiesStr = fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"` : "";
     const cmd = [
       YTDLP_FINAL,
       cookiesStr,
       "--no-playlist",
       "--extractor-args", "youtube:player_client=ios",
-      "-f", "bestaudio",
       "-g",
-      song.url
-    ].filter(Boolean);
-    const audioUrl = execSync(cmd.join(" "), { timeout: 30000 }).toString().trim().split("\n")[0];
-    console.log(`[Müzik] Ses URL alındı`);
+      `"${song.url}"`
+    ].filter(Boolean).join(" ");
+    console.log(`[Müzik] Komut: ${cmd}`);
+    const audioUrl = execSync(cmd, { timeout: 30000 }).toString().trim().split("\n")[0];
+    console.log(`[Müzik] Ses URL alındı: ${audioUrl.slice(0, 80)}...`);
 
     const resource = createAudioResource(audioUrl, { metadata: song });
     const player = getPlayer(guildId);
     player.play(resource);
-    console.log(`[Müzik] Çalıyor: ${song.title}`);
+    console.log(`[Müzik] Player başlatıldı: ${song.title}`);
 
     if (ch) {
       const embed = new EmbedBuilder()
@@ -1208,6 +1206,8 @@ client.on("interactionCreate", async (interaction) => {
           channelId: vcId,
           guildId: interaction.guildId,
           adapterCreator: client.voice.adapters.get(interaction.guildId),
+          selfMute: false,
+          selfDeaf: false,
         });
         conn.subscribe(getPlayer(interaction.guildId));
       }
@@ -1242,6 +1242,8 @@ client.on("interactionCreate", async (interaction) => {
           channelId: vcId,
           guildId: interaction.guildId,
           adapterCreator: client.voice.adapters.get(interaction.guildId),
+          selfMute: false,
+          selfDeaf: false,
         });
         conn.subscribe(getPlayer(interaction.guildId));
       }
