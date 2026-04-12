@@ -1274,7 +1274,7 @@ client.on("interactionCreate", async (interaction) => {
         console.error(`[Müzik] Şarkı bilgisi alınamadı: ${e.message}`);
       }
       const song = {
-        url: sorgu,
+        url: info.url || sorgu,
         title: info.title || sorgu,
         duration: info.duration || 0,
         requestedBy: interaction.user.id,
