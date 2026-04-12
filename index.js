@@ -5,7 +5,7 @@
 
 const { Client, GatewayIntentBits, EmbedBuilder, Colors, SlashCommandBuilder } = require("@jubbio/core");
 const {
-  joinVoiceChannel, createAudioPlayer, createAudioResourceFromUrl,
+  joinVoiceChannel, createAudioPlayer, createAudioResource, createAudioResourceFromUrl,
   probeAudioInfo, getVoiceConnection, AudioPlayerStatus, VoiceConnectionStatus,
 } = require("@jubbio/voice");
 const { MongoClient } = require("mongodb");
@@ -313,11 +313,14 @@ async function playNext(guildId) {
   console.log(`[Müzik] Çalıyor: ${song.title}`);
 
   try {
-    const resource = createAudioResourceFromUrl(song.url, {
-      metadata: song,
-      useYtDlp: true,
-      ytDlpPath: YTDLP_FINAL,
-    });
+    // yt-dlp ile direkt ses URL'si al
+    const cookiesArg = fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"` : "";
+    const ytdlpCmd = `${YTDLP_FINAL} ${cookiesArg} -f bestaudio -g --no-playlist "${song.url}"`;
+    console.log(`[Müzik] yt-dlp komutu: ${ytdlpCmd}`);
+    const audioUrl = execSync(ytdlpCmd).toString().trim();
+    console.log(`[Müzik] Ses URL alındı`);
+
+    const resource = createAudioResource(audioUrl, { metadata: song });
     const player = getPlayer(guildId);
     player.play(resource);
 
