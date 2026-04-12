@@ -279,13 +279,19 @@ function getPlayer(guildId) {
   const player = createAudioPlayer();
   players.set(guildId, player);
 
-  // idle: mevcut şarkı bitti, sıradakini çal
+  // idle: şarkı bitti, sıradakini çal
   player.on("idle", () => {
     const queue = queues.get(guildId) || [];
-    if (queue.length > 0) queue.shift();
-    queues.set(guildId, queue);
-    if (queue.length > 0) playNext(guildId);
-    else console.log(`[Müzik] Kuyruk bitti.`);
+    // Sadece queue[0] hala varsa shift yap (geç komutu zaten yaptıysa yapmaz)
+    if (queue.length > 0) {
+      queue.shift();
+      queues.set(guildId, queue);
+    }
+    if (queue.length > 0) {
+      setTimeout(() => playNext(guildId), 500);
+    } else {
+      console.log(`[Müzik] Kuyruk bitti.`);
+    }
   });
 
   player.on("error", (err) => {
@@ -313,8 +319,9 @@ async function playNext(guildId) {
     return;
   }
 
-  const song = queue[0]; // shift yapma, idle yapacak
-  console.log(`[playNext] Şarkı: ${song.title} | URL: ${song.url}`);
+  const song = queue[0];
+  console.log(`[playNext] Kuyruk: ${queue.map(s=>s.title).join(", ")}`);
+  console.log(`[playNext] Çalınacak: ${song.title}`);
 
   try {
     // SoundCloud için cookies gerekmez
@@ -1323,11 +1330,18 @@ client.on("interactionCreate", async (interaction) => {
   if (commandName === "geç") {
     const player = getPlayer(interaction.guildId);
     const queue = queues.get(interaction.guildId) || [];
-    if (player.state.status === AudioPlayerStatus.Idle || !queue.length)
+    if (!queue.length)
       return interaction.reply({ content: E.E5006, ephemeral: true });
-    // stop() → stateChange Idle → playNext() otomatik tetiklenir
-    player.stop();
-    interaction.reply("⏭️ Şarkı atlandı!");
+    // Manuel shift yap sonra playNext çağır
+    queue.shift();
+    queues.set(interaction.guildId, queue);
+    player.stop(true);
+    if (queue.length > 0) {
+      playNext(interaction.guildId);
+      interaction.reply("⏭️ Şarkı atlandı!");
+    } else {
+      interaction.reply("⏭️ Şarkı atlandı! Kuyruk boş.");
+    }
     return;
   }
 
