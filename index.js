@@ -315,8 +315,17 @@ async function playNext(guildId) {
   try {
     // yt-dlp ile direkt ses URL'si al (iOS client kullan - n challenge yok)
     const cookiesArgs = fs.existsSync(COOKIES_PATH) ? ["--cookies", COOKIES_PATH] : [];
-    const audioUrl = execSync(`${YTDLP_FINAL} ${cookiesArgs.join(" ")} --no-playlist --extractor-args "youtube:player_client=ios" -f "bestaudio" -g "${song.url}"`, { timeout: 30000 }).toString().trim().split("
-")[0];
+    const cookiesStr = fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"` : "";
+    const cmd = [
+      YTDLP_FINAL,
+      cookiesStr,
+      "--no-playlist",
+      "--extractor-args", "youtube:player_client=ios",
+      "-f", "bestaudio",
+      "-g",
+      song.url
+    ].filter(Boolean);
+    const audioUrl = execSync(cmd.join(" "), { timeout: 30000 }).toString().trim().split("\n")[0];
     console.log(`[Müzik] Ses URL alındı`);
 
     const resource = createAudioResource(audioUrl, { metadata: song });
