@@ -301,16 +301,19 @@ function getPlayer(guildId) {
 }
 
 async function playNext(guildId) {
+  console.log(`[playNext] Çağrıldı! guildId: ${guildId}`);
   const queue = queues.get(guildId) || [];
   const ch = channels.get(guildId);
 
+  console.log(`[playNext] Kuyruk uzunluğu: ${queue.length}`);
+
   if (queue.length === 0) {
-    console.log(`[Müzik] Guild ${guildId} kuyruğu bitti.`);
+    console.log(`[playNext] Kuyruk boş, duruyorum.`);
     return;
   }
 
   const song = queue[0];
-  console.log(`[Müzik] playNext başladı: ${song.title} | url: ${song.url}`);
+  console.log(`[playNext] Şarkı: ${song.title} | URL: ${song.url}`);
 
   try {
     const cookiesStr = fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"` : "";
@@ -322,14 +325,19 @@ async function playNext(guildId) {
       "-g",
       `"${song.url}"`
     ].filter(Boolean).join(" ");
-    console.log(`[Müzik] Komut: ${cmd}`);
+    console.log(`[playNext] Komut: ${cmd}`);
+    
     const audioUrl = execSync(cmd, { timeout: 30000 }).toString().trim().split("\n")[0];
-    console.log(`[Müzik] Ses URL alındı: ${audioUrl.slice(0, 80)}...`);
+    console.log(`[playNext] Ses URL: ${audioUrl.slice(0, 100)}`);
 
     const resource = createAudioResource(audioUrl, { metadata: song });
+    console.log(`[playNext] Resource oluşturuldu`);
+    
     const player = getPlayer(guildId);
+    console.log(`[playNext] Player durumu: ${player.state.status}`);
+    
     player.play(resource);
-    console.log(`[Müzik] Player başlatıldı: ${song.title}`);
+    console.log(`[playNext] Player başlatıldı!`);
 
     if (ch) {
       const embed = new EmbedBuilder()
@@ -341,11 +349,11 @@ async function playNext(guildId) {
       ch.send({ embeds: [embed] });
     }
   } catch (err) {
-    console.error(`[E5004] ${err.message}`);
-    if (ch) ch.send(E.E5004);
+    console.error(`[playNext] HATA: ${err.message}`);
+    console.error(`[playNext] Stack: ${err.stack}`);
+    if (ch) ch.send(`❌ Hata: ${err.message}`);
     queue.shift();
     queues.set(guildId, queue);
-    playNext(guildId);
   }
 }
 
