@@ -315,7 +315,7 @@ async function playNext(guildId) {
   try {
     // yt-dlp ile direkt ses URL'si al
     const cookiesArg = fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"` : "";
-    const ytdlpCmd = `${YTDLP_FINAL} ${cookiesArg} -f bestaudio -g --no-playlist "${song.url}"`;
+    const ytdlpCmd = `${YTDLP_FINAL} ${cookiesArg} -g --no-playlist "${song.url}"`;
     console.log(`[Müzik] yt-dlp komutu: ${ytdlpCmd}`);
     const audioUrl = execSync(ytdlpCmd).toString().trim();
     console.log(`[Müzik] Ses URL alındı`);
